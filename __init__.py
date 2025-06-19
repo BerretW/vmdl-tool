@@ -1,0 +1,85 @@
+bl_info = {
+    "name": "VMDL Tools",
+    "author": "Navrženo pro Mousiho, implementace AI",
+    "version": (1, 0, 0),
+    "blender": (3, 6, 0),
+    "location": "View3D > Sidebar > VMDL Tools",
+    "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
+    "warning": "Tento plugin je základ, doporučuje se další rozšiřování.",
+    "category": "Import-Export",
+}
+
+import bpy  # type: ignore
+
+# Modulové importy
+from . import (
+    constants,
+    vmdl_utils,
+    shader_materials,
+    collider_tools,
+    mountpoint_tools,
+    export_vmdl,
+    import_vmdl,
+    ui_panel,
+    ui_properties_panel,
+)
+
+# Všechny třídy k registraci
+classes = (
+    # Vlastnosti (Properties)
+    shader_materials.VMDLShaderProperties,
+    collider_tools.VMDLColliderProperties,
+    mountpoint_tools.VMDLMountpointProperties,
+    export_vmdl.VMDLExportProperties,
+
+    # Operátory
+    vmdl_utils.VMDL_OT_create_vmdl_object,
+    shader_materials.VMDL_OT_create_shader_material,
+    collider_tools.VMDL_OT_generate_collider_mesh,
+    collider_tools.VMDL_OT_toggle_collider_shading,
+    mountpoint_tools.VMDL_OT_create_mountpoint,
+    export_vmdl.VMDL_OT_export_package,
+    import_vmdl.VMDL_OT_import_package,
+
+    # UI Panely
+    ui_panel.VMDL_PT_main_panel,
+    ui_panel.VMDL_PT_material_panel,
+    ui_panel.VMDL_PT_collider_panel,
+    ui_panel.VMDL_PT_mountpoint_panel,
+    ui_panel.VMDL_PT_export_panel,
+    ui_properties_panel.VMDL_PT_material_properties,
+    ui_properties_panel.VMDL_PT_object_properties,
+)
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+    # Přidání vlastností do Blender datových struktur
+    bpy.types.Material.vmdl_shader = bpy.props.PointerProperty(type=shader_materials.VMDLShaderProperties)
+    bpy.types.Object.vmdl_collider = bpy.props.PointerProperty(type=collider_tools.VMDLColliderProperties)
+    bpy.types.Object.vmdl_mountpoint = bpy.props.PointerProperty(type=mountpoint_tools.VMDLMountpointProperties)
+    bpy.types.Scene.vmdl_export = bpy.props.PointerProperty(type=export_vmdl.VMDLExportProperties)
+
+    # Enum synchronizovaný s vmdl_type
+    bpy.types.Object.vmdl_enum_type = bpy.props.EnumProperty(
+        name="VMDL Typ",
+        description="Typ objektu podle VMDL systému",
+        items=ui_properties_panel.vmdl_enum_items,
+        get=ui_properties_panel.get_vmdl_enum,
+        set=ui_properties_panel.set_vmdl_enum
+    )
+
+def unregister():
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+
+    # Odstranění přidaných vlastností
+    del bpy.types.Material.vmdl_shader
+    del bpy.types.Object.vmdl_collider
+    del bpy.types.Object.vmdl_mountpoint
+    del bpy.types.Scene.vmdl_export
+    del bpy.types.Object.vmdl_enum_type
+
+if __name__ == "__main__":
+    register()

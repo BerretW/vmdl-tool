@@ -1,0 +1,71 @@
+# vmdl_plugin/collider_tools.py
+
+import bpy
+from .constants import COLLIDER_TYPES, COLLIDER_MATERIALS
+
+class VMDLColliderProperties(bpy.types.PropertyGroup):
+    collider_type: bpy.props.EnumProperty(
+        items=[(ct['id'], ct['name'], "") for ct in COLLIDER_TYPES],
+        name="Collider Type",
+        description="Typ fyzikálního materiálu collideru"
+    )
+
+class VMDL_OT_generate_collider_mesh(bpy.types.Operator):
+    bl_idname = "vmdl.generate_collider_mesh"
+    bl_label = "Generate Collider Mesh"
+    bl_description = "Vytvoří duplikát meshe jako základ pro collider"
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        source_obj = context.active_object
+        vmdl_root = source_obj.parent
+        
+        if not vmdl_root or vmdl_root.get("vmdl_type") != "ROOT":
+            self.report({'ERROR'}, "Zdrojový mesh musí být součástí VMDL hierarchie.")
+            return {'CANCELLED'}
+            
+        # Smazat starý collider pokud existuje
+        for child in vmdl_root.children:
+            if child.get("vmdl_type") == "COLLIDER":
+                bpy.data.objects.remove(child, do_unlink=True)
+
+        bpy.ops.object.duplicate()
+        collider_obj = context.active_object
+        collider_obj.name = "COL_" + source_obj.name
+        collider_obj["vmdl_type"] = "COLLIDER"
+        collider_obj.parent = vmdl_root
+        
+        self.report({'INFO'}, f"Collider {collider_obj.name} vytvořen.")
+        return {'FINISHED'}
+
+
+class VMDL_OT_toggle_collider_shading(bpy.types.Operator):
+    bl_idname = "vmdl.toggle_collider_shading"
+    bl_label = "Toggle Collider Preview Shading"
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj and obj.get("vmdl_type") == "COLLIDER"
+
+    def execute(self, context):
+        obj = context.active_object
+        col_type = obj.vmdl_collider.collider_type
+        
+        mat_name = "VMDL_COL_PREVIEW_" + col_type
+        mat = bpy.data.materials.get(mat_name)
+        
+        if not mat:
+            mat = bpy.data.materials.new(name=mat_name)
+            mat.use_nodes = True
+            mat.diffuse_color = COLLIDER_MATERIALS.get(col_type, (0.8, 0.8, 0.8, 1.0))
+        
+        if obj.data.materials:
+            obj.data.materials[0] = mat
+        else:
+            obj.data.materials.append(mat)
+            
+        return {'FINISHED'}
