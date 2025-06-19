@@ -39,10 +39,18 @@ class VMDL_PT_material_properties(bpy.types.Panel):
         if shader.shader_type == 'ShipStandard':
             layout.prop(shader, "smoothness")
             layout.prop(shader, "tint_color")
-            layout.prop(shader, "albedo_texture")
-            layout.prop(shader, "normal_texture")
-            layout.prop(shader, "roughness_texture")
-            layout.prop(shader, "metallic_texture")
+
+            layout.prop(shader, "albedo_image")
+            layout.operator("vmdl.load_image_albedo", icon='FILEBROWSER', text="Načíst Albedo")
+
+            layout.prop(shader, "normal_image")
+            layout.operator("vmdl.load_image_normal", icon='FILEBROWSER', text="Načíst Normal")
+
+            layout.prop(shader, "roughness_image")
+            layout.operator("vmdl.load_image_roughness", icon='FILEBROWSER', text="Načíst Roughness")
+
+            layout.prop(shader, "metallic_image")
+            layout.operator("vmdl.load_image_metallic", icon='FILEBROWSER', text="Načíst Metallic")
 
         elif shader.shader_type == 'ShipGlass':
             layout.prop(shader, "opacity")

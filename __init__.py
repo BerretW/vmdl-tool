@@ -1,7 +1,7 @@
 bl_info = {
     "name": "VMDL Tools V1.0",
     "author": "Navrženo pro Mousiho, implementace AI",
-    "version": (1, 0, 1),
+    "version": (1, 0, 2),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL Tools",
     "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
@@ -22,10 +22,16 @@ from . import (
     import_vmdl,
     ui_panel,
     ui_properties_panel,
+    make_image_loader,
+    
 )
 
 # Všechny třídy k registraci
 classes = (
+    make_image_loader("albedo"),
+    make_image_loader("normal"),
+    make_image_loader("roughness"),
+    make_image_loader("metallic"),
     # Vlastnosti (Properties)
     shader_materials.VMDLShaderProperties,
     collider_tools.VMDLColliderProperties,

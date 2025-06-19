@@ -60,25 +60,26 @@ class VMDL_PT_material_panel(bpy.types.Panel):
             if shader_props.shader_type == 'ShipStandard':
                 box.prop(shader_props, "smoothness")
                 box.prop(shader_props, "tint_color")
-                box.prop(shader_props, "albedo_texture")
-                box.prop(shader_props, "normal_texture")
-                box.prop(shader_props, "roughness_texture")
-                box.prop(shader_props, "metallic_texture")
+                box.prop(shader_props, "albedo_image")
+                box.prop(shader_props, "normal_image")
+                box.prop(shader_props, "roughness_image")
+                box.prop(shader_props, "metallic_image")
 
             elif shader_props.shader_type == 'ShipGlass':
                 box.prop(shader_props, "opacity")
                 box.prop(shader_props, "fresnel_power")
                 box.prop(shader_props, "reflectivity")
-                box.prop(shader_props, "opacity_texture")
+                box.prop(shader_props, "opacity_image")
 
             elif shader_props.shader_type == 'Layered4':
                 box.prop(shader_props, "blend_strength")
                 box.prop(shader_props, "global_tint")
                 box.prop(shader_props, "uv_scale")
-                box.prop(shader_props, "layer1_texture")
-                box.prop(shader_props, "layer2_texture")
-                box.prop(shader_props, "layer3_texture")
-                box.prop(shader_props, "layer4_texture")
+                box.prop(shader_props, "layer1_image")
+                box.prop(shader_props, "layer2_image")
+                box.prop(shader_props, "layer3_image")
+                box.prop(shader_props, "layer4_image")
+
 
 
 class VMDL_PT_collider_panel(bpy.types.Panel):
