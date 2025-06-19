@@ -1,4 +1,4 @@
-# vmdl_plugin/export_vmdl.py
+# export_vmdl.py
 
 import bpy
 import json
@@ -75,22 +75,36 @@ class VMDL_OT_export_package(bpy.types.Operator, ExportHelper):
             if shader.shader_type == 'ShipStandard':
                 mat_data['parameters']['smoothness'] = shader.smoothness
                 mat_data['parameters']['tint_color'] = list(shader.tint_color)
+                if shader.albedo_texture:
+                    mat_data['textures']['Albedo'] = os.path.basename(shader.albedo_texture)
+                    texture_files.add(shader.albedo_texture)
+                if shader.normal_texture:
+                    mat_data['textures']['Normal'] = os.path.basename(shader.normal_texture)
+                    texture_files.add(shader.normal_texture)
+                if shader.roughness_texture:
+                    mat_data['textures']['Roughness'] = os.path.basename(shader.roughness_texture)
+                    texture_files.add(shader.roughness_texture)
+                if shader.metallic_texture:
+                    mat_data['textures']['Metallic'] = os.path.basename(shader.metallic_texture)
+                    texture_files.add(shader.metallic_texture)
+
             elif shader.shader_type == 'ShipGlass':
                 mat_data['parameters']['opacity'] = shader.opacity
                 mat_data['parameters']['fresnel_power'] = shader.fresnel_power
                 mat_data['parameters']['reflectivity'] = shader.reflectivity
+                if shader.opacity_texture:
+                    mat_data['textures']['Opacity'] = os.path.basename(shader.opacity_texture)
+                    texture_files.add(shader.opacity_texture)
+
             elif shader.shader_type == 'Layered4':
                 mat_data['parameters']['blend_strength'] = shader.blend_strength
                 mat_data['parameters']['global_tint'] = list(shader.global_tint)
                 mat_data['parameters']['uv_scale'] = list(shader.uv_scale)
-
-            for node in mat.node_tree.nodes:
-                if node.type == 'TEX_IMAGE' and node.image:
-                    img = node.image
-                    tex_name = os.path.basename(img.filepath)
-                    dds_name = os.path.splitext(tex_name)[0] + ".dds"
-                    mat_data['textures'][node.label or node.name] = dds_name
-                    texture_files.add(img.filepath)
+                for idx in range(1, 5):
+                    tex_attr = getattr(shader, f"layer{idx}_texture")
+                    if tex_attr:
+                        mat_data['textures'][f"Layer{idx}"] = os.path.basename(tex_attr)
+                        texture_files.add(tex_attr)
 
             with open(os.path.join(temp_dir, mat_name), 'w') as f:
                 json.dump(mat_data, f, indent=2)

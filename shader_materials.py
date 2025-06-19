@@ -5,20 +5,31 @@ from .constants import SHADER_TYPES
 
 class VMDLShaderProperties(bpy.types.PropertyGroup):
     shader_type: bpy.props.EnumProperty(items=[(s,s,"") for s in SHADER_TYPES], name="Shader Type")
-    
-    # Parametry pro ShipStandard
+
+    # Textury – společné
+    albedo_texture: bpy.props.StringProperty(name="Albedo", subtype='FILE_PATH')
+    normal_texture: bpy.props.StringProperty(name="Normal", subtype='FILE_PATH')
+
+    # ShipStandard
     smoothness: bpy.props.FloatProperty(name="Smoothness", default=0.5, min=0, max=1)
     tint_color: bpy.props.FloatVectorProperty(name="Tint Color", subtype='COLOR', default=(1,1,1), min=0, max=1)
+    roughness_texture: bpy.props.StringProperty(name="Roughness", subtype='FILE_PATH')
+    metallic_texture: bpy.props.StringProperty(name="Metallic", subtype='FILE_PATH')
 
-    # Parametry pro ShipGlass
+    # ShipGlass
     opacity: bpy.props.FloatProperty(name="Opacity", default=0.2, min=0, max=1)
     fresnel_power: bpy.props.FloatProperty(name="Fresnel Power", default=5.0)
     reflectivity: bpy.props.FloatProperty(name="Reflectivity", default=0.5, min=0, max=1)
+    opacity_texture: bpy.props.StringProperty(name="Opacity Map", subtype='FILE_PATH')
 
-    # Parametry pro Layered4
+    # Layered4
     blend_strength: bpy.props.FloatProperty(name="Blend Strength", default=1.0)
     global_tint: bpy.props.FloatVectorProperty(name="Global Tint", subtype='COLOR', default=(1,1,1), min=0, max=1)
     uv_scale: bpy.props.FloatVectorProperty(name="UV Scale", size=2, default=(1.0, 1.0))
+    layer1_texture: bpy.props.StringProperty(name="Layer 1", subtype='FILE_PATH')
+    layer2_texture: bpy.props.StringProperty(name="Layer 2", subtype='FILE_PATH')
+    layer3_texture: bpy.props.StringProperty(name="Layer 3", subtype='FILE_PATH')
+    layer4_texture: bpy.props.StringProperty(name="Layer 4", subtype='FILE_PATH')
 
 
 class VMDL_OT_create_shader_material(bpy.types.Operator):

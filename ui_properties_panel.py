@@ -1,6 +1,6 @@
-import bpy
+# ui_properties_panel.py
 
-# ----- ENUM SYNC -----
+import bpy
 
 def vmdl_enum_items(self, context):
     return [
@@ -16,8 +16,6 @@ def get_vmdl_enum(self):
 
 def set_vmdl_enum(self, value):
     self["vmdl_type"] = value
-
-# ----- MATERIÁLY -----
 
 class VMDL_PT_material_properties(bpy.types.Panel):
     bl_label = "VMDL Shader"
@@ -41,18 +39,25 @@ class VMDL_PT_material_properties(bpy.types.Panel):
         if shader.shader_type == 'ShipStandard':
             layout.prop(shader, "smoothness")
             layout.prop(shader, "tint_color")
+            layout.prop(shader, "albedo_texture")
+            layout.prop(shader, "normal_texture")
+            layout.prop(shader, "roughness_texture")
+            layout.prop(shader, "metallic_texture")
 
         elif shader.shader_type == 'ShipGlass':
             layout.prop(shader, "opacity")
             layout.prop(shader, "fresnel_power")
             layout.prop(shader, "reflectivity")
+            layout.prop(shader, "opacity_texture")
 
         elif shader.shader_type == 'Layered4':
             layout.prop(shader, "blend_strength")
             layout.prop(shader, "global_tint")
             layout.prop(shader, "uv_scale")
-
-# ----- OBJEKTY -----
+            layout.prop(shader, "layer1_texture")
+            layout.prop(shader, "layer2_texture")
+            layout.prop(shader, "layer3_texture")
+            layout.prop(shader, "layer4_texture")
 
 class VMDL_PT_object_properties(bpy.types.Panel):
     bl_label = "VMDL Nastavení objektu"

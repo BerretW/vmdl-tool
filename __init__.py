@@ -1,8 +1,8 @@
 bl_info = {
-    "name": "VMDL Tools",
+    "name": "VMDL Tools V1.0",
     "author": "Navrženo pro Mousiho, implementace AI",
-    "version": (1, 0, 0),
-    "blender": (3, 6, 0),
+    "version": (1, 0, 1),
+    "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL Tools",
     "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
     "warning": "Tento plugin je základ, doporučuje se další rozšiřování.",
