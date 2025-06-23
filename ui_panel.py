@@ -1,7 +1,7 @@
 # ui_panel.py
 
 import bpy
-from .constants import SHADER_TYPES, COLLIDER_TYPES
+from .constants import SHADER_TYPES
 
 class VMDL_PT_main_panel(bpy.types.Panel):
     bl_label = "VMDL Tools"
@@ -38,6 +38,13 @@ class VMDL_PT_material_panel(bpy.types.Panel):
         obj = context.active_object
         return obj and obj.type == 'MESH'
 
+    def draw_color_row(self, layout, props, prop_name, layer_name):
+        """Pomocná funkce pro vykreslení řádku s barvou a tlačítkem."""
+        row = layout.row(align=True)
+        row.prop(props, prop_name)
+        op = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
+        op.layer_name = layer_name
+
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
@@ -48,38 +55,57 @@ class VMDL_PT_material_panel(bpy.types.Panel):
 
         row = box.row(align=True)
         row.prop(context.scene.vmdl_export, "shader_type_to_create", text="")
-        row.operator("vmdl.create_shader_material", text="Create Material", icon='ADD')
+        row.operator("vmdl.create_shader_material", text="Create", icon='ADD')
 
-        if mat and mat.vmdl_shader:
+        if mat and hasattr(mat, "vmdl_shader"):
             box = layout.box()
-            box.label(text=f"Nastavení: {mat.name}", icon='NODE_MATERIAL')
-
             shader_props = mat.vmdl_shader
-            box.prop(shader_props, "shader_type", text="Shader")
+            box.label(text=f"Nastavení: {mat.name} ({shader_props.shader_type})", icon='NODE_MATERIAL')
+            
+            box.prop(shader_props, "shader_type", text="Změnit Shader")
 
+            # Společné vlastnosti
+            if shader_props.shader_type != 'ShipGlass':
+                col = box.column(align=True)
+                self.draw_color_row(col, shader_props, "color1", "Color1")
+                self.draw_color_row(col, shader_props, "color2", "Color2")
+
+
+            # Specifické vlastnosti
             if shader_props.shader_type == 'ShipStandard':
-                box.prop(shader_props, "smoothness")
-                box.prop(shader_props, "tint_color")
-                box.prop(shader_props, "albedo_image")
-                box.prop(shader_props, "normal_image")
-                box.prop(shader_props, "roughness_image")
-                box.prop(shader_props, "metallic_image")
+                col = box.column(align=True)
+                col.prop(shader_props, "smoothness")
+                col.prop(shader_props, "tint_color")
+                col.separator()
+                col.prop(shader_props, "albedo_image")
+                col.prop(shader_props, "normal_image")
+                col.prop(shader_props, "roughness_image")
+                col.prop(shader_props, "metallic_image")
+
+            elif shader_props.shader_type == 'Standard_dirt':
+                col = box.column(align=True)
+                col.prop(shader_props, "albedo_image")
+                col.prop(shader_props, "normal_image")
+                col.prop(shader_props, "dirt_image")
 
             elif shader_props.shader_type == 'ShipGlass':
-                box.prop(shader_props, "opacity")
-                box.prop(shader_props, "fresnel_power")
-                box.prop(shader_props, "reflectivity")
-                box.prop(shader_props, "opacity_image")
+                col = box.column(align=True)
+                col.prop(shader_props, "opacity")
+                col.prop(shader_props, "fresnel_power")
+                col.prop(shader_props, "reflectivity")
+                col.separator()
+                col.prop(shader_props, "opacity_image")
 
             elif shader_props.shader_type == 'Layered4':
-                box.prop(shader_props, "blend_strength")
-                box.prop(shader_props, "global_tint")
-                box.prop(shader_props, "uv_scale")
-                box.prop(shader_props, "layer1_image")
-                box.prop(shader_props, "layer2_image")
-                box.prop(shader_props, "layer3_image")
-                box.prop(shader_props, "layer4_image")
-
+                col = box.column(align=True)
+                col.prop(shader_props, "blend_strength")
+                col.prop(shader_props, "global_tint")
+                col.prop(shader_props, "uv_scale")
+                col.separator()
+                col.prop(shader_props, "layer1_image")
+                col.prop(shader_props, "layer2_image")
+                col.prop(shader_props, "layer3_image")
+                col.prop(shader_props, "layer4_image")
 
 
 class VMDL_PT_collider_panel(bpy.types.Panel):
@@ -94,7 +120,7 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        return obj and (obj.type == 'MESH' or obj.get("vmdl_type") == "ROOT")
+        return obj and (obj.type == 'MESH' or obj.get("vmdl_type") == "ROOT" or obj.get("vmdl_type") == "COLLIDER")
 
     def draw(self, context):
         layout = self.layout

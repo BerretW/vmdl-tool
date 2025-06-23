@@ -2,8 +2,9 @@
 
 SHADER_TYPES = [
     "ShipStandard",
+    "Standard_dirt",
+    "Layered4",
     "ShipGlass",
-    "Layered4"
 ]
 
 COLLIDER_TYPES = [

@@ -4,21 +4,25 @@ import bpy
 
 def vmdl_enum_items(self, context):
     return [
-        ('NONE', "Žádný", ""),
-        ('ROOT', "Root", ""),
-        ('MESH', "Model (.model)", ""),
-        ('COLLIDER', "Collider (.col)", ""),
-        ('MOUNTPOINT', "Mountpoint", "")
+        ('NONE', "Žádný", "Objekt není součástí VMDL hierarchie"),
+        ('ROOT', "Root", "Kořenový objekt VMDL modelu"),
+        ('MESH', "Mesh", "Viditelný model"),
+        ('COLLIDER', "Collider", "Fyzikální kolizní model"),
+        ('MOUNTPOINT', "Mountpoint", "Bod pro připojení (zbraně, efekty)")
     ]
 
 def get_vmdl_enum(self):
     return self.get("vmdl_type", "NONE")
 
 def set_vmdl_enum(self, value):
-    self["vmdl_type"] = value
+    if value == "NONE":
+        if "vmdl_type" in self:
+            del self["vmdl_type"]
+    else:
+        self["vmdl_type"] = value
 
 class VMDL_PT_material_properties(bpy.types.Panel):
-    bl_label = "VMDL Shader"
+    bl_label = "VMDL Shader Properties"
     bl_idname = "MATERIAL_PT_vmdl_shader"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -29,43 +33,68 @@ class VMDL_PT_material_properties(bpy.types.Panel):
         mat = context.material
         return mat and hasattr(mat, "vmdl_shader")
 
+    def draw_color_row(self, layout, props, prop_name, layer_name):
+        """Pomocná funkce pro vykreslení řádku s barvou a tlačítkem."""
+        row = layout.row(align=True)
+        row.prop(props, prop_name)
+        op = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
+        op.layer_name = layer_name
+
     def draw(self, context):
         layout = self.layout
         mat = context.material
         shader = mat.vmdl_shader
 
         layout.prop(shader, "shader_type", text="Shader")
+        
+        # Společné vlastnosti
+        if shader.shader_type != 'ShipGlass':
+            col = layout.column(align=True)
+            self.draw_color_row(col, shader, "color1", "Color1")
+            self.draw_color_row(col, shader, "color2", "Color2")
 
+
+        # Specifické vlastnosti
         if shader.shader_type == 'ShipStandard':
-            layout.prop(shader, "smoothness")
-            layout.prop(shader, "tint_color")
+            col = layout.column(align=True)
+            col.prop(shader, "smoothness")
+            col.prop(shader, "tint_color")
+            col.separator()
+            self.draw_texture_slot(col, shader, "albedo_image", "vmdl.load_image_albedo")
+            self.draw_texture_slot(col, shader, "normal_image", "vmdl.load_image_normal")
+            self.draw_texture_slot(col, shader, "roughness_image", "vmdl.load_image_roughness")
+            self.draw_texture_slot(col, shader, "metallic_image", "vmdl.load_image_metallic")
 
-            layout.prop(shader, "albedo_image")
-            layout.operator("vmdl.load_image_albedo", icon='FILEBROWSER', text="Načíst Albedo")
-
-            layout.prop(shader, "normal_image")
-            layout.operator("vmdl.load_image_normal", icon='FILEBROWSER', text="Načíst Normal")
-
-            layout.prop(shader, "roughness_image")
-            layout.operator("vmdl.load_image_roughness", icon='FILEBROWSER', text="Načíst Roughness")
-
-            layout.prop(shader, "metallic_image")
-            layout.operator("vmdl.load_image_metallic", icon='FILEBROWSER', text="Načíst Metallic")
+        elif shader.shader_type == 'Standard_dirt':
+            col = layout.column(align=True)
+            self.draw_texture_slot(col, shader, "albedo_image", "vmdl.load_image_albedo")
+            self.draw_texture_slot(col, shader, "normal_image", "vmdl.load_image_normal")
+            self.draw_texture_slot(col, shader, "dirt_image", "vmdl.load_image_dirt")
 
         elif shader.shader_type == 'ShipGlass':
-            layout.prop(shader, "opacity")
-            layout.prop(shader, "fresnel_power")
-            layout.prop(shader, "reflectivity")
-            layout.prop(shader, "opacity_texture")
+            col = layout.column(align=True)
+            col.prop(shader, "opacity")
+            col.prop(shader, "fresnel_power")
+            col.prop(shader, "reflectivity")
+            col.separator()
+            self.draw_texture_slot(col, shader, "opacity_image", "vmdl.load_image_opacity")
 
         elif shader.shader_type == 'Layered4':
-            layout.prop(shader, "blend_strength")
-            layout.prop(shader, "global_tint")
-            layout.prop(shader, "uv_scale")
-            layout.prop(shader, "layer1_texture")
-            layout.prop(shader, "layer2_texture")
-            layout.prop(shader, "layer3_texture")
-            layout.prop(shader, "layer4_texture")
+            col = layout.column(align=True)
+            col.prop(shader, "blend_strength")
+            col.prop(shader, "global_tint")
+            col.prop(shader, "uv_scale")
+            col.separator()
+            self.draw_texture_slot(col, shader, "layer1_image", "vmdl.load_image_layer1")
+            self.draw_texture_slot(col, shader, "layer2_image", "vmdl.load_image_layer2")
+            self.draw_texture_slot(col, shader, "layer3_image", "vmdl.load_image_layer3")
+            self.draw_texture_slot(col, shader, "layer4_image", "vmdl.load_image_layer4")
+
+    def draw_texture_slot(self, layout, props, prop_name, operator_id):
+        row = layout.row(align=True)
+        row.prop(props, prop_name)
+        row.operator(operator_id, text="", icon='FILEBROWSER')
+
 
 class VMDL_PT_object_properties(bpy.types.Panel):
     bl_label = "VMDL Nastavení objektu"
@@ -84,8 +113,13 @@ class VMDL_PT_object_properties(bpy.types.Panel):
 
         layout.prop(obj, 'vmdl_enum_type', text="VMDL Typ")
 
-        if obj.vmdl_enum_type == "COLLIDER":
-            layout.prop(obj.vmdl_collider, "collider_type")
-        elif obj.vmdl_enum_type == "MOUNTPOINT":
-            layout.prop(obj.vmdl_mountpoint, "forward_vector")
-            layout.prop(obj.vmdl_mountpoint, "up_vector")
+        vmdl_type = obj.get("vmdl_type")
+        if vmdl_type == "COLLIDER":
+            box = layout.box()
+            box.label(text="Collider Vlastnosti")
+            box.prop(obj.vmdl_collider, "collider_type")
+        elif vmdl_type == "MOUNTPOINT":
+            box = layout.box()
+            box.label(text="Mountpoint Vlastnosti")
+            box.prop(obj.vmdl_mountpoint, "forward_vector")
+            box.prop(obj.vmdl_mountpoint, "up_vector")
