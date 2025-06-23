@@ -9,7 +9,7 @@ BASE_PBR_PARAMETERS = [
     {"name": "pbrglassiness", "type": "float", "default": 0.0},
     {"name": "pbrcavityrange", "type": "float", "default": 0.0},
     # Naše interní barvy pro řízení v Blenderu
-    {"name": "Color1", "type": "vector4", "default": (0.5, 0.8, 1.0, 1.0)}, # G->Roughness, B->Normal, A->Saturation
+    {"name": "Color1", "type": "vector4", "default": (0.0, 0.8, 1.0, 1.0)}, # R:Tint, G:Roughness, B:Normal, A:Saturation
     {"name": "Color2", "type": "vector4", "default": (0.0, 0.0, 0.0, 1.0)}, # R,G,B -> Blend
 ]
 

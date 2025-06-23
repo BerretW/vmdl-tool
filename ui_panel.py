@@ -41,7 +41,7 @@ class VMDL_PT_material_panel(bpy.types.Panel):
         
         row = layout.row(align=True)
         row.prop(tex_prop, "image", text=label)
-        op = row.operator(VMDL_OT_load_image.bl_idname, text="", icon='FILEBROWSER')
+        op = row.operator("vmdl.load_image", text="", icon='FILEBROWSER')
         op.texture_name = tex_prop.name
 
     def draw(self, context):
@@ -59,6 +59,9 @@ class VMDL_PT_material_panel(bpy.types.Panel):
             main_box = layout.box()
             main_box.label(text=f"Materiál: {mat.name}", icon='NODE_MATERIAL')
             main_box.prop(shader_props, "shader_name", text="")
+            
+            # Nové tlačítko pro rychlé nastavení
+            main_box.operator("vmdl.set_default_vertex_colors", text="Nastavit výchozí Vertex Colors", icon='BRUSH_DATA')
             
             if shader_props.textures:
                 tex_box = main_box.box()
@@ -84,6 +87,7 @@ class VMDL_PT_material_panel(bpy.types.Panel):
                         elif param.type == "bool":
                             row.prop(param, "bool_value", text=param.name)
 
+# Ostatní panely (Collider, Mountpoint, Export) beze změny
 class VMDL_PT_collider_panel(bpy.types.Panel):
     bl_label = "Colliders"
     bl_idname = "VMDL_PT_collider_panel"

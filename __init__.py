@@ -1,7 +1,7 @@
 bl_info = {
-    "name": "VMDL Tools V2.3",
+    "name": "VMDL Tools V2.4",
     "author": "Navrženo pro Mousiho, implementace a opravy AI",
-    "version": (2, 3, 0),
+    "version": (2, 4, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL Tools",
     "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
@@ -37,10 +37,11 @@ classes = (
     export_vmdl.VMDLExportProperties,
 
     # Operátory
-    shader_materials.VMDL_OT_load_image, # Přidáno
+    shader_materials.VMDL_OT_load_image,
     vmdl_utils.VMDL_OT_create_vmdl_object,
     shader_materials.VMDL_OT_create_shader_material,
     vertex_color_utils.VMDL_OT_fill_vertex_color,
+    vertex_color_utils.VMDL_OT_set_default_vertex_colors, # PŘIDÁNO
     collider_tools.VMDL_OT_generate_collider_mesh,
     collider_tools.VMDL_OT_toggle_collider_shading,
     mountpoint_tools.VMDL_OT_create_mountpoint,

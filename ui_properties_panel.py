@@ -40,7 +40,7 @@ class VMDL_PT_material_properties(bpy.types.Panel):
         
         row = layout.row(align=True)
         row.prop(tex_prop, "image", text=label)
-        op = row.operator(VMDL_OT_load_image.bl_idname, text="", icon='FILEBROWSER')
+        op = row.operator("vmdl.load_image", text="", icon='FILEBROWSER')
         op.texture_name = tex_prop.name
 
     def draw(self, context):
@@ -49,6 +49,9 @@ class VMDL_PT_material_properties(bpy.types.Panel):
         shader_props = mat.vmdl_shader
         
         layout.prop(shader_props, "shader_name", text="Shader")
+
+        # Nové tlačítko pro rychlé nastavení
+        layout.operator("vmdl.set_default_vertex_colors", text="Nastavit výchozí Vertex Colors", icon='BRUSH_DATA')
         
         if shader_props.textures:
             tex_box = layout.box()

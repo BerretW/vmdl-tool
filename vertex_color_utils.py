@@ -1,10 +1,14 @@
 import bpy
 
+# Standardní hodnoty pro rychlé nastavení
+DEFAULT_COLOR_1 = (0.0, 0.8, 1.0, 1.0) # R:Tint (0=začátek palety), G:Roughness, B:Normal, A:Saturation
+DEFAULT_COLOR_2 = (0.0, 0.0, 0.0, 1.0) # R,G,B:Blend -> výchozí je 0 (základní vrstva)
+
 class VMDL_OT_fill_vertex_color(bpy.types.Operator):
     """Aplikuje vybranou barvu a přepne do Vertex Paint módu."""
     bl_idname = "vmdl.fill_vertex_color"
     bl_label = "Fill With Vertex Color"
-    bl_description = "Vyplní cílovou Vertex Color vrstvu a přepne do režimu malování"
+    bl_description = "Vyplní cílovou Vertex Color vrstvu barvou nastavenou v UI a přepne do režimu malování"
     bl_options = {'REGISTER', 'UNDO'}
 
     layer_name: bpy.props.StringProperty()
@@ -22,7 +26,6 @@ class VMDL_OT_fill_vertex_color(bpy.types.Operator):
             self.report({'ERROR'}, "Nebyla specifikována cílová vrstva.")
             return {'CANCELLED'}
 
-        # Přepnutí do Object módu je bezpečnější pro modifikaci dat
         if context.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
 
@@ -46,9 +49,44 @@ class VMDL_OT_fill_vertex_color(bpy.types.Operator):
 
         mesh.update()
         
-        # Přepnutí do Vertex Paint módu a aktivace správné vrstvy
         mesh.vertex_colors.active_index = mesh.vertex_colors.find(self.layer_name)
         bpy.ops.object.mode_set(mode='VERTEX_PAINT')
 
         self.report({'INFO'}, f"Objekt vyplněn barvou ve vrstvě '{self.layer_name}'. Režim přepnut na Vertex Paint.")
+        return {'FINISHED'}
+
+class VMDL_OT_set_default_vertex_colors(bpy.types.Operator):
+    """Nastaví Color1 a Color2 na standardní výchozí hodnoty pro PBR."""
+    bl_idname = "vmdl.set_default_vertex_colors"
+    bl_label = "Set Default Vertex Colors"
+    bl_description = "Vyplní Color1 a Color2 standardními hodnotami pro PBR workflow"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        mesh = obj.data
+
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        # Nastavení Color1
+        if "Color1" not in mesh.vertex_colors:
+            mesh.vertex_colors.new(name="Color1")
+        color_layer_1 = mesh.vertex_colors["Color1"]
+        for loop in mesh.loops:
+            color_layer_1.data[loop.index].color = DEFAULT_COLOR_1
+
+        # Nastavení Color2
+        if "Color2" not in mesh.vertex_colors:
+            mesh.vertex_colors.new(name="Color2")
+        color_layer_2 = mesh.vertex_colors["Color2"]
+        for loop in mesh.loops:
+            color_layer_2.data[loop.index].color = DEFAULT_COLOR_2
+
+        mesh.update()
+        self.report({'INFO'}, "Vertex barvy nastaveny na výchozí PBR hodnoty.")
         return {'FINISHED'}
