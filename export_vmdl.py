@@ -5,6 +5,12 @@ import zipfile
 import shutil
 from bpy_extras.io_utils import ExportHelper
 
+try:
+    # ZMĚNA: Importujeme přímo export_main, abychom měli jistotu
+    from io_scene_gltf2 import export_main
+except ImportError:
+    export_main = None
+
 class VMDLExportProperties(bpy.types.PropertyGroup):
     pass
 
@@ -15,10 +21,23 @@ class VMDL_OT_export_package(bpy.types.Operator, ExportHelper):
     filter_glob: bpy.props.StringProperty(default="*.vmdl.pkg", options={'HIDDEN'})
 
     def execute(self, context):
+        if not export_main:
+            self.report({'ERROR'}, "Standardní glTF 2.0 addon není aktivní.")
+            return {'CANCELLED'}
+
         root_obj = context.active_object
         if not root_obj or root_obj.get("vmdl_type") != "ROOT":
-            self.report({'ERROR'}, "Musíte vybrat VMDL Root objekt pro export.")
-            return {'CANCELLED'}
+            test_obj = context.active_object
+            parent_found = False
+            while test_obj and test_obj.parent:
+                if test_obj.parent.get("vmdl_type") == "ROOT":
+                    root_obj = test_obj.parent
+                    parent_found = True
+                    break
+                test_obj = test_obj.parent
+            if not parent_found:
+                self.report({'ERROR'}, "Musíte vybrat VMDL Root objekt (nebo jeho část) pro export.")
+                return {'CANCELLED'}
 
         base_name = os.path.splitext(os.path.basename(self.filepath))[0].replace(".vmdl", "")
         temp_dir = bpy.app.tempdir + os.sep + "vmdl_export_" + base_name
@@ -26,34 +45,47 @@ class VMDL_OT_export_package(bpy.types.Operator, ExportHelper):
         if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
         os.makedirs(temp_dir)
 
-        vmdl_data = {'name': base_name, 'version': 2.5}
+        vmdl_data = {'name': base_name, 'version': 2.6}
         mat_files = []
         texture_files = set()
+        
+        all_vmdl_objects = []
+        def gather_objects(obj):
+            all_vmdl_objects.append(obj)
+            for child in obj.children:
+                gather_objects(child)
+        gather_objects(root_obj)
 
-        # --- NOVÁ LOGIKA PRO MULTI-MESH ---
-        mesh_objects = [c for c in root_obj.children if c.get("vmdl_type") == "MESH" and c.type == 'MESH']
+        mesh_objects = [obj for obj in all_vmdl_objects if obj.type == 'MESH' and obj.get("vmdl_type") == "MESH"]
         if not mesh_objects:
             self.report({'ERROR'}, "VMDL Root neobsahuje žádný MESH objekt.")
             shutil.rmtree(temp_dir); return {'CANCELLED'}
 
-        collider_obj = next((c for c in root_obj.children if c.get("vmdl_type") == "COLLIDER"), None)
-        armature_obj = next((c for c in root_obj.children if c.type == 'ARMATURE'), None)
+        armature_obj = next((obj for obj in all_vmdl_objects if obj.type == 'ARMATURE'), None)
         
+        vmdl_data['hierarchy'] = []
+        for obj in all_vmdl_objects:
+            if obj != root_obj and obj.parent:
+                vmdl_data['hierarchy'].append({'child': obj.name, 'parent': obj.parent.name})
+
         # EXPORT MESH (všech najednou)
         vmdl_data['model_file'] = f"{base_name}.glb"
         bpy.ops.object.select_all(action='DESELECT')
         for obj in mesh_objects:
             obj.select_set(True)
-        context.view_layer.objects.active = mesh_objects[0]
+        if armature_obj:
+            armature_obj.select_set(True)
+        
         export_path = os.path.join(temp_dir, vmdl_data['model_file'])
-        bpy.ops.export_scene.gltf(filepath=export_path, use_selection=True, export_format='GLB', export_attributes=True)
+        export_settings = {
+            "filepath": export_path, "use_selection": True, "export_format": 'GLB',
+            "export_attributes": True, "export_image_format": 'AUTO'
+        }
+        
+        # ZMĚNA: Používáme správnou funkci 'export_main.save'
+        export_main.save(context, export_settings)
 
-        # EXPORT COLLIDER
-        if collider_obj:
-            # (beze změny)
-            pass
-
-        # EXPORT MATERIÁLŮ (ze všech meshů)
+        # EXPORT MATERIÁLŮ
         all_materials = set()
         for obj in mesh_objects:
             for mat_slot in obj.material_slots:
@@ -86,50 +118,14 @@ class VMDL_OT_export_package(bpy.types.Operator, ExportHelper):
 
         vmdl_data['materials'] = mat_files
 
-        # ANIMACE
-        if armature_obj and armature_obj.animation_data and armature_obj.animation_data.action:
-             vmdl_data['has_armature'] = True
-             vmdl_data['animations'] = []
-             original_action = armature_obj.animation_data.action
-             for action in bpy.data.actions:
-                 armature_obj.animation_data.action = action
-                 anim_name = action.name
-                 anim_file = f"anim_{anim_name}.glb"
-                 export_path = os.path.join(temp_dir, anim_file)
-                 bpy.ops.object.select_all(action='DESELECT')
-                 armature_obj.select_set(True)
-                 context.view_layer.objects.active = armature_obj
-                 bpy.ops.export_scene.gltf(filepath=export_path, use_selection=True, export_format='GLB', export_anim=True, export_lights=False, export_cameras=False)
-                 vmdl_data['animations'].append({
-                     'name': anim_name,
-                     'file': anim_file,
-                     'loop': True # Ponecháme jako výchozí, může být upraveno později
-                 })
-             armature_obj.animation_data.action = original_action # Vrátíme původní akci
-
-        # MOUNTPOINTY
-        vmdl_data['mountpoints'] = []
-        for child in root_obj.children:
-            if child.get("vmdl_type") == "MOUNTPOINT":
-                loc, rot_q, _ = child.matrix_world.decompose()
-                vmdl_data['mountpoints'].append({
-                    'name': child.name,
-                    'position': list(loc),
-                    'rotation': [rot_q.x, rot_q.y, rot_q.z, rot_q.w],
-                    'forward': list(child.vmdl_mountpoint.forward_vector),
-                    'up': list(child.vmdl_mountpoint.up_vector)
-                })
-
         # ZÁPIS HLAVNÍHO JSON
         with open(os.path.join(temp_dir, f"{base_name}.vmdl.json"), 'w') as f:
             json.dump(vmdl_data, f, indent=2)
 
-        # KOPÍROVÁNÍ TEXTUR
         for tex_path in texture_files:
             if os.path.exists(tex_path):
                 shutil.copy(tex_path, os.path.join(temp_dir, os.path.basename(tex_path)))
 
-        # ZIP BALÍK
         with zipfile.ZipFile(self.filepath, 'w') as zf:
             for root, _, files in os.walk(temp_dir):
                 for file in files:
