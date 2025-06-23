@@ -1,11 +1,11 @@
 bl_info = {
-    "name": "VMDL Tools V2.1",
-    "author": "Navrženo pro Mousiho, implementace, refactoring a opravy AI",
-    "version": (2, 1, 0),
+    "name": "VMDL Tools V2.3",
+    "author": "Navrženo pro Mousiho, implementace a opravy AI",
+    "version": (2, 3, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL Tools",
     "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
-    "warning": "Plugin byl kompletně přestavěn na daty řízený systém.",
+    "warning": "",
     "category": "Import-Export",
 }
 
@@ -37,6 +37,7 @@ classes = (
     export_vmdl.VMDLExportProperties,
 
     # Operátory
+    shader_materials.VMDL_OT_load_image, # Přidáno
     vmdl_utils.VMDL_OT_create_vmdl_object,
     shader_materials.VMDL_OT_create_shader_material,
     vertex_color_utils.VMDL_OT_fill_vertex_color,
@@ -60,13 +61,10 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    # Přidání vlastností do Blender datových struktur
     bpy.types.Material.vmdl_shader = bpy.props.PointerProperty(type=shader_materials.VMDLShaderProperties)
     bpy.types.Object.vmdl_collider = bpy.props.PointerProperty(type=collider_tools.VMDLColliderProperties)
     bpy.types.Object.vmdl_mountpoint = bpy.props.PointerProperty(type=mountpoint_tools.VMDLMountpointProperties)
     bpy.types.Scene.vmdl_export = bpy.props.PointerProperty(type=export_vmdl.VMDLExportProperties)
-
-    # Enum synchronizovaný s vmdl_type
     bpy.types.Object.vmdl_enum_type = bpy.props.EnumProperty(
         name="VMDL Typ",
         description="Typ objektu podle VMDL systému",
@@ -79,7 +77,6 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
-    # Odstranění přidaných vlastností
     del bpy.types.Material.vmdl_shader
     del bpy.types.Object.vmdl_collider
     del bpy.types.Object.vmdl_mountpoint

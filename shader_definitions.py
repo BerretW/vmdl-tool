@@ -1,6 +1,3 @@
-# Toto je centrální definiční soubor pro všechny shadery.
-# Můžete zde snadno přidávat nové shadery nebo upravovat existující.
-
 # Společná sada PBR parametrů pro většinu fyzikálních shaderů
 BASE_PBR_PARAMETERS = [
     {"name": "pbrtweak_metallic", "type": "float", "default": 0.0},
@@ -16,6 +13,13 @@ BASE_PBR_PARAMETERS = [
     {"name": "Color2", "type": "vector4", "default": (0.0, 0.0, 0.0, 1.0)}, # R,G,B -> Blend
 ]
 
+# Společná sada PBR textur
+BASE_PBR_TEXTURES = [
+    {"name": "bumptex", "label": "Normal Texture"},
+    {"name": "speculartex", "label": "Specular Texture"},
+    {"name": "roughnesstex", "label": "Roughness Texture"},
+]
+
 SHADER_DEFINITIONS = {
     "ShipStandard.vfx": {
         "parameters": BASE_PBR_PARAMETERS + [
@@ -27,12 +31,7 @@ SHADER_DEFINITIONS = {
         "textures": [
             {"name": "tintpalettetex", "label": "Tint Palette"},
             {"name": "diffusetex", "label": "Diffuse Texture"},
-            {"name": "detailtexarrayn", "label": "Detail Normal Array"},
-            {"name": "diffusetex2", "label": "Diffuse Texture 2"},
-            {"name": "bumptex", "label": "Normal/Bump Texture"},
-            {"name": "speculartex", "label": "Specular Texture"},
-            {"name": "speculartex2", "label": "Specular Texture 2"},
-        ]
+        ] + BASE_PBR_TEXTURES
     },
     "Standard_dirt.vfx": {
         "parameters": BASE_PBR_PARAMETERS + [
@@ -41,23 +40,25 @@ SHADER_DEFINITIONS = {
         ],
         "textures": [
             {"name": "albedo", "label": "Albedo Texture"},
-            {"name": "normal", "label": "Normal Texture"},
             {"name": "dirt", "label": "Dirt Texture"},
-        ]
+        ] + BASE_PBR_TEXTURES
     },
     "Layered4.vfx": {
         "parameters": BASE_PBR_PARAMETERS + [
             # Parametry specifické pro Layered4
             {"name": "global_tint", "type": "vector4", "default": (1.0, 1.0, 1.0, 1.0)},
-            {"name": "uv_scale", "type": "vector4", "default": (1.0, 1.0, 1.0, 1.0)}, # Používá se jako vec2, ale pro konzistenci
+            {"name": "uv_scale", "type": "vector4", "default": (1.0, 1.0, 1.0, 1.0)},
         ],
         "textures": [
             {"name": "layer1tex", "label": "Layer 1 (Base)"},
             {"name": "layer2tex", "label": "Layer 2 (Red)"},
             {"name": "layer3tex", "label": "Layer 3 (Green)"},
             {"name": "layer4tex", "label": "Layer 4 (Blue)"},
-            {"name": "bumptex", "label": "Normal/Bump Texture"},
-        ]
+            {"name": "bumptex1", "label": "Normal Layer 1"},
+            {"name": "bumptex2", "label": "Normal Layer 2"},
+            {"name": "bumptex3", "label": "Normal Layer 3"},
+            {"name": "bumptex4", "label": "Normal Layer 4"},
+        ] + BASE_PBR_TEXTURES # Přidá hlavní normal, specular, roughness
     },
     "ShipGlass.vfx": {
          "parameters": [

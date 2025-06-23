@@ -1,6 +1,48 @@
 import bpy
 from .shader_definitions import SHADER_DEFINITIONS
 
+class VMDL_OT_load_image(bpy.types.Operator):
+    """Operátor pro načtení obrázku (včetně DDS) do vybraného slotu."""
+    bl_idname = "vmdl.load_image"
+    bl_label = "Load Image"
+    bl_description = "Načte obrázek (.png, .jpg, .dds...) do tohoto slotu"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    filepath: bpy.props.StringProperty(subtype="FILE_PATH")
+    filter_glob: bpy.props.StringProperty(
+        default="*.png;*.jpg;*.jpeg;*.tga;*.bmp;*.dds",
+        options={'HIDDEN'},
+    )
+    
+    # Který slot v kolekci textur máme naplnit
+    texture_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        mat = context.material
+        if not mat: return {'CANCELLED'}
+        
+        shader_props = mat.vmdl_shader
+        tex_prop = shader_props.textures.get(self.texture_name)
+        if not tex_prop:
+            self.report({'ERROR'}, f"Texture slot '{self.texture_name}' not found.")
+            return {'CANCELLED'}
+
+        # Načtení obrázku přímo do Blenderu
+        try:
+            image = bpy.data.images.load(self.filepath, check_existing=True)
+            tex_prop.image = image
+            self.report({'INFO'}, f"Obrázek '{image.name}' načten.")
+        except Exception as e:
+            self.report({'ERROR'}, f"Chyba při načítání obrázku: {e}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 def setup_principled_node_graph(mat):
     """
     Vytvoří nebo aktualizuje jednoduchý náhledový node-graph.
@@ -19,7 +61,6 @@ def setup_principled_node_graph(mat):
         bsdf = nodes.new(type='ShaderNodeBsdfPrincipled'); bsdf.location = (0, 0)
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
-    # Odstraní staré VMDL nody pro čistou aktualizaci
     for node in list(nodes):
         if node.label.startswith("VMDL_"):
             nodes.remove(node)
@@ -36,14 +77,13 @@ def setup_principled_node_graph(mat):
     sep_c1 = nodes.new('ShaderNodeSeparateColor'); sep_c1.label = "VMDL_SepC1"; sep_c1.location = (-800, 200)
     links.new(attr_c1.outputs['Color'], sep_c1.inputs['Color'])
     
-    # G kanál z Color1 řídí Roughness
     links.new(sep_c1.outputs['Green'], bsdf.inputs['Roughness'])
 
-    # B kanál z Color1 řídí sílu normálové mapy
-    bump_tex_prop = next((t for t in shader_props.textures if "bump" in t.name.lower() or "normal" in t.name.lower()), None)
+    bump_tex_prop = next((t for t in shader_props.textures if "bumptex" == t.name.lower()), None)
     if bump_tex_prop and bump_tex_prop.image:
         norm_tex = nodes.new('ShaderNodeTexImage'); norm_tex.label = "VMDL_NormalTex"; norm_tex.image = bump_tex_prop.image
-        norm_tex.image.colorspace_settings.name = 'Non-Color'
+        if norm_tex.image:
+            norm_tex.image.colorspace_settings.name = 'Non-Color'
         norm_map = nodes.new('ShaderNodeNormalMap'); norm_map.label = "VMDL_NormalMap"
         norm_tex.location = (-500, -500); norm_map.location = (-250, -500)
         links.new(norm_tex.outputs['Color'], norm_map.inputs['Color'])
@@ -52,7 +92,6 @@ def setup_principled_node_graph(mat):
 
     # --- Specifická logika pro Base Color ---
     if shader_name == "Layered4.vfx":
-        # Logika pro 4-vrstvý shader
         sep_c2 = nodes.new('ShaderNodeSeparateColor'); sep_c2.label = "VMDL_SepC2"; sep_c2.location = (-800, -200)
         links.new(attr_c2.outputs['Color'], sep_c2.inputs['Color'])
         
@@ -69,36 +108,37 @@ def setup_principled_node_graph(mat):
                 y_pos -= 250
         
         if len(tex_nodes) >= 2:
-            mix1 = nodes.new('ShaderNodeMixRGB'); mix1.label = "VMDL_Mix1"; mix1.location = (-550, 500)
-            links.new(tex_nodes[0].outputs['Color'], mix1.inputs[1])
-            links.new(tex_nodes[1].outputs['Color'], mix1.inputs[2])
-            links.new(sep_c2.outputs['Red'], mix1.inputs['Fac'])
-            last_mix_output = mix1.outputs['Color']
+            # V novějších verzích Blenderu je MixRGB nahrazen Mix Node s typem Color
+            mix1 = nodes.new('ShaderNodeMix'); mix1.data_type = "RGBA"; mix1.label = "VMDL_Mix1"; mix1.location = (-550, 500)
+            links.new(tex_nodes.get(0).outputs['Color'], mix1.inputs['A'])
+            links.new(tex_nodes.get(1).outputs['Color'], mix1.inputs['B'])
+            links.new(sep_c2.outputs['Red'], mix1.inputs['Factor'])
+            last_mix_output = mix1.outputs['Result']
 
             if len(tex_nodes) >= 3:
-                mix2 = nodes.new('ShaderNodeMixRGB'); mix2.label = "VMDL_Mix2"; mix2.location = (-350, 400)
-                links.new(last_mix_output, mix2.inputs[1])
-                links.new(tex_nodes[2].outputs['Color'], mix2.inputs[2])
-                links.new(sep_c2.outputs['Green'], mix2.inputs['Fac'])
-                last_mix_output = mix2.outputs['Color']
+                mix2 = nodes.new('ShaderNodeMix'); mix2.data_type = "RGBA"; mix2.label = "VMDL_Mix2"; mix2.location = (-350, 400)
+                links.new(last_mix_output, mix2.inputs['A'])
+                links.new(tex_nodes.get(2).outputs['Color'], mix2.inputs['B'])
+                links.new(sep_c2.outputs['Green'], mix2.inputs['Factor'])
+                last_mix_output = mix2.outputs['Result']
 
             if len(tex_nodes) >= 4:
-                mix3 = nodes.new('ShaderNodeMixRGB'); mix3.label = "VMDL_Mix3"; mix3.location = (-150, 300)
-                links.new(last_mix_output, mix3.inputs[1])
-                links.new(tex_nodes[3].outputs['Color'], mix3.inputs[2])
-                links.new(sep_c2.outputs['Blue'], mix3.inputs['Fac'])
-                last_mix_output = mix3.outputs['Color']
+                mix3 = nodes.new('ShaderNodeMix'); mix3.data_type = "RGBA"; mix3.label = "VMDL_Mix3"; mix3.location = (-150, 300)
+                links.new(last_mix_output, mix3.inputs['A'])
+                links.new(tex_nodes.get(3).outputs['Color'], mix3.inputs['B'])
+                links.new(sep_c2.outputs['Blue'], mix3.inputs['Factor'])
+                last_mix_output = mix3.outputs['Result']
             
             links.new(last_mix_output, bsdf.inputs['Base Color'])
+        elif len(tex_nodes) == 1:
+             links.new(tex_nodes.get(0).outputs['Color'], bsdf.inputs['Base Color'])
     
     else:
-        # Obecná logika pro ostatní shadery - najde Albedo/Diffuse
         albedo_tex_prop = next((t for t in shader_props.textures if "diffuse" in t.name.lower() or "albedo" in t.name.lower()), None)
         if albedo_tex_prop and albedo_tex_prop.image:
             albedo_tex = nodes.new('ShaderNodeTexImage'); albedo_tex.label = "VMDL_AlbedoTex"; albedo_tex.image = albedo_tex_prop.image
             albedo_tex.location = (-250, 300)
             links.new(albedo_tex.outputs['Color'], bsdf.inputs['Base Color'])
-
 
 class VMDLTextureProperty(bpy.types.PropertyGroup):
     """Vlastnost pro jednu texturu v materiálu."""

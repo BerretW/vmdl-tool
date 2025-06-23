@@ -1,5 +1,6 @@
 import bpy
 from .shader_definitions import SHADER_DEFINITIONS
+from .shader_materials import VMDL_OT_load_image
 
 class VMDL_PT_main_panel(bpy.types.Panel):
     bl_label = "VMDL Tools"
@@ -11,11 +12,9 @@ class VMDL_PT_main_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
-
         box = layout.box()
         box.label(text="VMDL Workflow", icon='OBJECT_DATA')
         box.operator("vmdl.create_vmdl_object", text="Create VMDL Object", icon='CUBE')
-
         if obj and obj.get("vmdl_type") == "ROOT":
             box.label(text=f"Aktivní VMDL: {obj.name}", icon='OUTLINER_OB_EMPTY')
         elif not obj:
@@ -35,6 +34,16 @@ class VMDL_PT_material_panel(bpy.types.Panel):
         obj = context.active_object
         return obj and obj.type == 'MESH'
 
+    def draw_texture_row(self, layout, tex_prop):
+        shader_def = SHADER_DEFINITIONS.get(tex_prop.id_data.vmdl_shader.shader_name, {})
+        tex_def = next((t for t in shader_def.get("textures", []) if t["name"] == tex_prop.name), None)
+        label = tex_def["label"] if tex_def else tex_prop.name
+        
+        row = layout.row(align=True)
+        row.prop(tex_prop, "image", text=label)
+        op = row.operator(VMDL_OT_load_image.bl_idname, text="", icon='FILEBROWSER')
+        op.texture_name = tex_prop.name
+
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
@@ -49,18 +58,13 @@ class VMDL_PT_material_panel(bpy.types.Panel):
             
             main_box = layout.box()
             main_box.label(text=f"Materiál: {mat.name}", icon='NODE_MATERIAL')
-            
             main_box.prop(shader_props, "shader_name", text="")
             
             if shader_props.textures:
                 tex_box = main_box.box()
                 tex_box.label(text="Textury", icon='TEXTURE_DATA')
-                shader_def = SHADER_DEFINITIONS.get(shader_props.shader_name, {})
-                tex_defs = {t["name"]: t for t in shader_def.get("textures", [])}
                 for tex in shader_props.textures:
-                    tex_def = tex_defs.get(tex.name)
-                    label = tex_def["label"] if tex_def else tex.name
-                    tex_box.prop(tex, "image", text=label)
+                    self.draw_texture_row(tex_box, tex)
             
             if shader_props.parameters:
                 param_box = main_box.box()
@@ -99,10 +103,8 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
         obj = context.active_object
         box = layout.box()
         box.label(text="Collider Tools", icon='PHYSICS')
-        col_poll = obj and obj.type == 'MESH' and obj.get("vmdl_type") == "MESH"
         op = box.operator("vmdl.generate_collider_mesh", text="Generate Collider", icon='MOD_BUILD')
-        op.poll = col_poll
-
+        
         if obj and obj.get("vmdl_type") == "COLLIDER":
             col_props = obj.vmdl_collider
             box.prop(col_props, "collider_type", text="Typ")
@@ -126,7 +128,6 @@ class VMDL_PT_mountpoint_panel(bpy.types.Panel):
         box = layout.box()
         box.label(text="Mountpoint Tools", icon='EMPTY_ARROWS')
         box.operator("vmdl.create_mountpoint", text="Create from Selection", icon='ADD')
-
         obj = context.active_object
         if obj and obj.get("vmdl_type") == "MOUNTPOINT":
             box.label(text=f"Editing: {obj.name}")

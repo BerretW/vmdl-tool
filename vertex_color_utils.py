@@ -1,10 +1,10 @@
 import bpy
 
 class VMDL_OT_fill_vertex_color(bpy.types.Operator):
-    """Aplikuje vybranou barvu z VMDL properties na celou Vertex Color vrstvu"""
+    """Aplikuje vybranou barvu a přepne do Vertex Paint módu."""
     bl_idname = "vmdl.fill_vertex_color"
     bl_label = "Fill With Vertex Color"
-    bl_description = "Vyplní cílovou Vertex Color vrstvu barvou nastavenou v UI"
+    bl_description = "Vyplní cílovou Vertex Color vrstvu a přepne do režimu malování"
     bl_options = {'REGISTER', 'UNDO'}
 
     layer_name: bpy.props.StringProperty()
@@ -22,12 +22,16 @@ class VMDL_OT_fill_vertex_color(bpy.types.Operator):
             self.report({'ERROR'}, "Nebyla specifikována cílová vrstva.")
             return {'CANCELLED'}
 
+        # Přepnutí do Object módu je bezpečnější pro modifikaci dat
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         if self.layer_name not in mesh.vertex_colors:
             mesh.vertex_colors.new(name=self.layer_name)
             self.report({'INFO'}, f"Vytvořena chybějící Vertex Color vrstva: {self.layer_name}")
 
         color_layer = mesh.vertex_colors[self.layer_name]
-
+        
         shader_props = obj.active_material.vmdl_shader
         param = shader_props.parameters.get(self.layer_name)
         
@@ -37,14 +41,14 @@ class VMDL_OT_fill_vertex_color(bpy.types.Operator):
             
         color_to_apply = param.vector_value
 
-        # Přepnutí do Object módu je bezpečnější pro modifikaci dat
-        if context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        # Spolehlivá metoda pomocí cyklu
         for loop in mesh.loops:
             color_layer.data[loop.index].color = color_to_apply
 
-        mesh.update() # Ujistíme se, že změny jsou viditelné
-        self.report({'INFO'}, f"Objekt '{obj.name}' vyplněn barvou ve vrstvě '{self.layer_name}'.")
+        mesh.update()
+        
+        # Přepnutí do Vertex Paint módu a aktivace správné vrstvy
+        mesh.vertex_colors.active_index = mesh.vertex_colors.find(self.layer_name)
+        bpy.ops.object.mode_set(mode='VERTEX_PAINT')
+
+        self.report({'INFO'}, f"Objekt vyplněn barvou ve vrstvě '{self.layer_name}'. Režim přepnut na Vertex Paint.")
         return {'FINISHED'}
