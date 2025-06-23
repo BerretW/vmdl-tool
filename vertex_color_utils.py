@@ -36,21 +36,25 @@ class VMDL_OT_fill_vertex_color(bpy.types.Operator):
 
         color_layer = mesh.vertex_colors[self.layer_name]
 
-        # Získáme barvu z VMDL vlastností materiálu
+        # Získáme barvu z VMDL parametrů materiálu
         shader_props = obj.active_material.vmdl_shader
-        color_prop_name = self.layer_name.lower() # 'Color1' -> 'color1'
+        param = shader_props.parameters.get(self.layer_name)
         
-        if not hasattr(shader_props, color_prop_name):
-            self.report({'ERROR'}, f"Vlastnost '{color_prop_name}' na shaderu neexistuje.")
+        if not param or param.type != "vector4":
+            self.report({'ERROR'}, f"Parametr '{self.layer_name}' nebyl nalezen nebo není typu Vector4.")
             return {'CANCELLED'}
             
-        color_to_apply = getattr(shader_props, color_prop_name)
+        color_to_apply = param.vector_value
 
         # Aplikujeme barvu na všechny loopy meshe
+        # Přepneme do Object módu pro jistotu, že můžeme modifikovat data
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         if mesh.loops:
-            for poly in mesh.polygons:
-                for loop_index in poly.loop_indices:
-                    color_layer.data[loop_index].color = color_to_apply
+            color_layer.data.foreach_set("color", [c for c in color_to_apply for _ in range(len(mesh.loops))])
+        
+        mesh.update()
 
         self.report({'INFO'}, f"Objekt '{obj.name}' byl vyplněn barvou ve vrstvě '{self.layer_name}'.")
         return {'FINISHED'}

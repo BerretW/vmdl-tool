@@ -1,5 +1,3 @@
-# vmdl_plugin/collider_tools.py
-
 import bpy
 from .constants import COLLIDER_TYPES, COLLIDER_MATERIALS
 
@@ -17,7 +15,8 @@ class VMDL_OT_generate_collider_mesh(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.active_object and context.active_object.type == 'MESH'
+        obj = context.active_object
+        return obj and obj.type == 'MESH' and obj.get("vmdl_type") == "MESH"
 
     def execute(self, context):
         source_obj = context.active_object
@@ -32,15 +31,16 @@ class VMDL_OT_generate_collider_mesh(bpy.types.Operator):
             if child.get("vmdl_type") == "COLLIDER":
                 bpy.data.objects.remove(child, do_unlink=True)
 
+        bpy.ops.object.select_all(action='DESELECT')
+        source_obj.select_set(True)
         bpy.ops.object.duplicate()
         collider_obj = context.active_object
-        collider_obj.name = "COL_" + source_obj.name
+        collider_obj.name = source_obj.name.replace('.model', '.col')
         collider_obj["vmdl_type"] = "COLLIDER"
         collider_obj.parent = vmdl_root
         
         self.report({'INFO'}, f"Collider {collider_obj.name} vytvořen.")
         return {'FINISHED'}
-
 
 class VMDL_OT_toggle_collider_shading(bpy.types.Operator):
     bl_idname = "vmdl.toggle_collider_shading"
@@ -55,6 +55,10 @@ class VMDL_OT_toggle_collider_shading(bpy.types.Operator):
         obj = context.active_object
         col_type = obj.vmdl_collider.collider_type
         
+        if not col_type:
+            self.report({'WARNING'}, "Není nastaven typ collideru.")
+            return {'CANCELLED'}
+
         mat_name = "VMDL_COL_PREVIEW_" + col_type
         mat = bpy.data.materials.get(mat_name)
         

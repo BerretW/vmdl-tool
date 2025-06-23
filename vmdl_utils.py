@@ -1,11 +1,9 @@
-# vmdl_plugin/vmdl_utils.py
-
 import bpy
 
 class VMDL_OT_create_vmdl_object(bpy.types.Operator):
     bl_idname = "vmdl.create_vmdl_object"
     bl_label = "Create VMDL Object"
-    bl_description = "Vytvoří VMDL hierarchii s modelem a colliderem"
+    bl_description = "Vytvoří VMDL hierarchii s modelem a colliderem z aktivního objektu"
 
     @classmethod
     def poll(cls, context):
@@ -19,34 +17,35 @@ class VMDL_OT_create_vmdl_object(bpy.types.Operator):
         root = context.active_object
         root.name = source_obj.name + "_VMDL"
         root["vmdl_type"] = "ROOT"
-        root.vmdl_enum_type = "ROOT"
 
-        # 2. Duplikuj zdroj → .model
+        # Přenastavíme source_obj na VMDL MESH a připarentujeme
+        source_obj.name = source_obj.name + ".model"
+        source_obj.parent = root
+        source_obj.location = (0, 0, 0) # Reset pozice vůči parentovi
+        source_obj["vmdl_type"] = "MESH"
+
+        # Duplikuj .model → .col
         bpy.ops.object.select_all(action='DESELECT')
         source_obj.select_set(True)
-        bpy.ops.object.duplicate()
-        model = context.selected_objects[0]
-        model.name = source_obj.name + ".model"
-        model.parent = root
-        model.location = (0, 0, 0)
-        model["vmdl_type"] = "MESH"
-        model.vmdl_enum_type = "MESH"
-
-        # 3. Duplikuj model → .col
-        bpy.ops.object.select_all(action='DESELECT')
-        model.select_set(True)
+        context.view_layer.objects.active = source_obj
         bpy.ops.object.duplicate()
         col = context.selected_objects[0]
-        col.name = source_obj.name + ".col"
+        col.name = source_obj.name.replace(".model", ".col")
         col.parent = root
         col.location = (0, 0, 0)
         col["vmdl_type"] = "COLLIDER"
-        col.vmdl_enum_type = "COLLIDER"
+        
+        # Vytvoříme výchozí Vertex Color vrstvy na obou objektech
+        for obj in [source_obj, col]:
+            if 'Color1' not in obj.data.vertex_colors:
+                obj.data.vertex_colors.new(name="Color1")
+            if 'Color2' not in obj.data.vertex_colors:
+                obj.data.vertex_colors.new(name="Color2")
 
-        # 4. Přepnout zpět na model
+        # Přepnout zpět aktivní výběr na root
         bpy.ops.object.select_all(action='DESELECT')
-        model.select_set(True)
-        context.view_layer.objects.active = model
+        root.select_set(True)
+        context.view_layer.objects.active = root
 
-        self.report({'INFO'}, f"VMDL '{root.name}' vytvořen s .model a .col")
+        self.report({'INFO'}, f"VMDL '{root.name}' vytvořen. Původní objekt byl použit jako .model.")
         return {'FINISHED'}

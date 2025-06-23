@@ -1,18 +1,19 @@
 bl_info = {
-    "name": "VMDL Tools V1.2",
-    "author": "Navrženo pro Mousiho, implementace a oprava AI",
-    "version": (1, 2, 0),
+    "name": "VMDL Tools V2.0",
+    "author": "Navrženo pro Mousiho, implementace a refactoring AI",
+    "version": (2, 0, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL Tools",
     "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
-    "warning": "Tento plugin je základ, doporučuje se další rozšiřování.",
+    "warning": "Plugin byl kompletně přestavěn na daty řízený systém.",
     "category": "Import-Export",
 }
 
-import bpy  # type: ignore
+import bpy
 
 # Modulové importy
 from . import (
+    shader_definitions,
     constants,
     vmdl_utils,
     shader_materials,
@@ -22,25 +23,14 @@ from . import (
     import_vmdl,
     ui_panel,
     ui_properties_panel,
-    make_image_loader,
-    vertex_color_utils, # <-- PŘIDÁN NOVÝ IMPORT
+    vertex_color_utils,
 )
 
 # Všechny třídy k registraci
 classes = (
-    # Factory pro operátory načítání obrázků
-    make_image_loader.make_image_loader("albedo"),
-    make_image_loader.make_image_loader("normal"),
-    make_image_loader.make_image_loader("roughness"),
-    make_image_loader.make_image_loader("metallic"),
-    make_image_loader.make_image_loader("opacity"),
-    make_image_loader.make_image_loader("dirt"),
-    make_image_loader.make_image_loader("layer1"),
-    make_image_loader.make_image_loader("layer2"),
-    make_image_loader.make_image_loader("layer3"),
-    make_image_loader.make_image_loader("layer4"),
-
     # Vlastnosti (Properties)
+    shader_materials.VMDLTextureProperty,
+    shader_materials.VMDLParameterProperty,
     shader_materials.VMDLShaderProperties,
     collider_tools.VMDLColliderProperties,
     mountpoint_tools.VMDLMountpointProperties,
@@ -49,7 +39,7 @@ classes = (
     # Operátory
     vmdl_utils.VMDL_OT_create_vmdl_object,
     shader_materials.VMDL_OT_create_shader_material,
-    vertex_color_utils.VMDL_OT_fill_vertex_color, # <-- PŘIDÁN NOVÝ OPERÁTOR
+    vertex_color_utils.VMDL_OT_fill_vertex_color,
     collider_tools.VMDL_OT_generate_collider_mesh,
     collider_tools.VMDL_OT_toggle_collider_shading,
     mountpoint_tools.VMDL_OT_create_mountpoint,

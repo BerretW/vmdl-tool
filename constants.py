@@ -1,11 +1,11 @@
-# vmdl_plugin/constants.py
-
-SHADER_TYPES = [
-    "ShipStandard",
-    "Standard_dirt",
-    "Layered4",
-    "ShipGlass",
-]
+# Seznam typů shaderů je nyní dynamický a načítá se z 'shader_definitions.py'
+# Tento seznam je ponechán jen pro případnou referenci, ale již se nepoužívá.
+# SHADER_TYPES = [
+#     "ShipStandard",
+#     "Standard_dirt",
+#     "Layered4",
+#     "ShipGlass",
+# ]
 
 COLLIDER_TYPES = [
     {'name': 'Metal Hollow', 'id': 'COL_METAL_HOLLOW'},

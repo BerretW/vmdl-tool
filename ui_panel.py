@@ -1,7 +1,4 @@
-# ui_panel.py
-
 import bpy
-from .constants import SHADER_TYPES
 
 class VMDL_PT_main_panel(bpy.types.Panel):
     bl_label = "VMDL Tools"
@@ -23,7 +20,6 @@ class VMDL_PT_main_panel(bpy.types.Panel):
         elif not obj:
             box.label(text="Vyberte objekt pro start.", icon='INFO')
 
-
 class VMDL_PT_material_panel(bpy.types.Panel):
     bl_label = "Shader & Materiály"
     bl_idname = "VMDL_PT_material_panel"
@@ -38,13 +34,6 @@ class VMDL_PT_material_panel(bpy.types.Panel):
         obj = context.active_object
         return obj and obj.type == 'MESH'
 
-    def draw_color_row(self, layout, props, prop_name, layer_name):
-        """Pomocná funkce pro vykreslení řádku s barvou a tlačítkem."""
-        row = layout.row(align=True)
-        row.prop(props, prop_name)
-        op = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
-        op.layer_name = layer_name
-
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
@@ -52,61 +41,49 @@ class VMDL_PT_material_panel(bpy.types.Panel):
 
         box = layout.box()
         box.label(text="Vytvořit materiál", icon='MATERIAL')
-
-        row = box.row(align=True)
-        row.prop(context.scene.vmdl_export, "shader_type_to_create", text="")
-        row.operator("vmdl.create_shader_material", text="Create", icon='ADD')
+        box.operator("vmdl.create_shader_material", text="Create New Material", icon='ADD')
 
         if mat and hasattr(mat, "vmdl_shader"):
-            box = layout.box()
             shader_props = mat.vmdl_shader
-            box.label(text=f"Nastavení: {mat.name} ({shader_props.shader_type})", icon='NODE_MATERIAL')
             
-            box.prop(shader_props, "shader_type", text="Změnit Shader")
-
-            # Společné vlastnosti
-            if shader_props.shader_type != 'ShipGlass':
-                col = box.column(align=True)
-                self.draw_color_row(col, shader_props, "color1", "Color1")
-                self.draw_color_row(col, shader_props, "color2", "Color2")
-
-
-            # Specifické vlastnosti
-            if shader_props.shader_type == 'ShipStandard':
-                col = box.column(align=True)
-                col.prop(shader_props, "smoothness")
-                col.prop(shader_props, "tint_color")
-                col.separator()
-                col.prop(shader_props, "albedo_image")
-                col.prop(shader_props, "normal_image")
-                col.prop(shader_props, "roughness_image")
-                col.prop(shader_props, "metallic_image")
-
-            elif shader_props.shader_type == 'Standard_dirt':
-                col = box.column(align=True)
-                col.prop(shader_props, "albedo_image")
-                col.prop(shader_props, "normal_image")
-                col.prop(shader_props, "dirt_image")
-
-            elif shader_props.shader_type == 'ShipGlass':
-                col = box.column(align=True)
-                col.prop(shader_props, "opacity")
-                col.prop(shader_props, "fresnel_power")
-                col.prop(shader_props, "reflectivity")
-                col.separator()
-                col.prop(shader_props, "opacity_image")
-
-            elif shader_props.shader_type == 'Layered4':
-                col = box.column(align=True)
-                col.prop(shader_props, "blend_strength")
-                col.prop(shader_props, "global_tint")
-                col.prop(shader_props, "uv_scale")
-                col.separator()
-                col.prop(shader_props, "layer1_image")
-                col.prop(shader_props, "layer2_image")
-                col.prop(shader_props, "layer3_image")
-                col.prop(shader_props, "layer4_image")
-
+            main_box = layout.box()
+            main_box.label(text=f"Materiál: {mat.name}", icon='NODE_MATERIAL')
+            
+            # Výběr shaderu
+            main_box.prop(shader_props, "shader_name", text="")
+            
+            # Dynamické vykreslení textur
+            if shader_props.textures:
+                tex_box = main_box.box()
+                row = tex_box.row()
+                row.label(text="Textury", icon='TEXTURE_DATA')
+                for tex in shader_props.textures:
+                    # Získáme label z definice pro přehlednější UI
+                    shader_def = bpy.context.scene.vmdl_tool_shaders.get(shader_props.shader_name, {})
+                    tex_def = next((t for t in shader_def.get("textures", []) if t["name"] == tex.name), None)
+                    label = tex_def["label"] if tex_def else tex.name
+                    tex_box.prop(tex, "image", text=label)
+            
+            # Dynamické vykreslení parametrů
+            if shader_props.parameters:
+                param_box = main_box.box()
+                row = param_box.row()
+                row.label(text="Parametry", icon='PROPERTIES')
+                for param in shader_props.parameters:
+                    # Speciální UI pro Color1 a Color2 s tlačítkem
+                    if param.name in ["Color1", "Color2"]:
+                        row = param_box.row(align=True)
+                        row.prop(param, "vector_value", text=param.name)
+                        op = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
+                        op.layer_name = param.name
+                    else: # Běžné UI pro ostatní parametry
+                        row = param_box.row(align=True)
+                        if param.type == "float":
+                            row.prop(param, "float_value", text=param.name)
+                        elif param.type == "vector4":
+                            row.prop(param, "vector_value", text=param.name)
+                        elif param.type == "bool":
+                            row.prop(param, "bool_value", text=param.name)
 
 class VMDL_PT_collider_panel(bpy.types.Panel):
     bl_label = "Colliders"
@@ -120,7 +97,7 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        return obj and (obj.type == 'MESH' or obj.get("vmdl_type") == "ROOT" or obj.get("vmdl_type") == "COLLIDER")
+        return obj and (obj.type == 'MESH' or obj.get("vmdl_type") in ["ROOT", "COLLIDER"])
 
     def draw(self, context):
         layout = self.layout
@@ -134,7 +111,6 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
             col_props = obj.vmdl_collider
             box.prop(col_props, "collider_type", text="Typ")
             box.operator("vmdl.toggle_collider_shading", text="Toggle Preview Shading", icon='SHADING_RENDERED')
-
 
 class VMDL_PT_mountpoint_panel(bpy.types.Panel):
     bl_label = "Mountpoints"
@@ -161,7 +137,6 @@ class VMDL_PT_mountpoint_panel(bpy.types.Panel):
             mount_props = obj.vmdl_mountpoint
             box.prop(mount_props, "forward_vector", text="Forward")
             box.prop(mount_props, "up_vector", text="Up")
-
 
 class VMDL_PT_export_panel(bpy.types.Panel):
     bl_label = "Export"
