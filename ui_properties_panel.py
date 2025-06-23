@@ -37,33 +37,28 @@ class VMDL_PT_material_properties(bpy.types.Panel):
         mat = context.material
         shader_props = mat.vmdl_shader
         
-        # Výběr shaderu
         layout.prop(shader_props, "shader_name", text="Shader")
         
-        # Dynamické vykreslení textur
         if shader_props.textures:
             tex_box = layout.box()
-            row = tex_box.row()
-            row.label(text="Textury", icon='TEXTURE_DATA')
+            tex_box.label(text="Textury", icon='TEXTURE_DATA')
+            shader_def = SHADER_DEFINITIONS.get(shader_props.shader_name, {})
+            tex_defs = {t["name"]: t for t in shader_def.get("textures", [])}
             for tex in shader_props.textures:
-                shader_def = SHADER_DEFINITIONS.get(shader_props.shader_name, {})
-                tex_def = next((t for t in shader_def.get("textures", []) if t["name"] == tex.name), None)
+                tex_def = tex_defs.get(tex.name)
                 label = tex_def["label"] if tex_def else tex.name
                 tex_box.prop(tex, "image", text=label)
         
-        # Dynamické vykreslení parametrů
         if shader_props.parameters:
             param_box = layout.box()
-            row = param_box.row()
-            row.label(text="Parametry", icon='PROPERTIES')
+            param_box.label(text="Parametry", icon='PROPERTIES')
             for param in shader_props.parameters:
-                # Speciální UI pro Color1 a Color2 s tlačítkem
                 if param.name in ["Color1", "Color2"]:
                     row = param_box.row(align=True)
                     row.prop(param, "vector_value", text=param.name)
                     op = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
                     op.layer_name = param.name
-                else: # Běžné UI pro ostatní parametry
+                else:
                     row = param_box.row(align=True)
                     if param.type == "float":
                         row.prop(param, "float_value", text=param.name)
@@ -71,7 +66,6 @@ class VMDL_PT_material_properties(bpy.types.Panel):
                         row.prop(param, "vector_value", text=param.name)
                     elif param.type == "bool":
                         row.prop(param, "bool_value", text=param.name)
-
 
 class VMDL_PT_object_properties(bpy.types.Panel):
     bl_label = "VMDL Nastavení objektu"

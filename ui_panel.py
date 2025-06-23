@@ -1,4 +1,5 @@
 import bpy
+from .shader_definitions import SHADER_DEFINITIONS
 
 class VMDL_PT_main_panel(bpy.types.Panel):
     bl_label = "VMDL Tools"
@@ -49,34 +50,28 @@ class VMDL_PT_material_panel(bpy.types.Panel):
             main_box = layout.box()
             main_box.label(text=f"Materiál: {mat.name}", icon='NODE_MATERIAL')
             
-            # Výběr shaderu
             main_box.prop(shader_props, "shader_name", text="")
             
-            # Dynamické vykreslení textur
             if shader_props.textures:
                 tex_box = main_box.box()
-                row = tex_box.row()
-                row.label(text="Textury", icon='TEXTURE_DATA')
+                tex_box.label(text="Textury", icon='TEXTURE_DATA')
+                shader_def = SHADER_DEFINITIONS.get(shader_props.shader_name, {})
+                tex_defs = {t["name"]: t for t in shader_def.get("textures", [])}
                 for tex in shader_props.textures:
-                    # Získáme label z definice pro přehlednější UI
-                    shader_def = bpy.context.scene.vmdl_tool_shaders.get(shader_props.shader_name, {})
-                    tex_def = next((t for t in shader_def.get("textures", []) if t["name"] == tex.name), None)
+                    tex_def = tex_defs.get(tex.name)
                     label = tex_def["label"] if tex_def else tex.name
                     tex_box.prop(tex, "image", text=label)
             
-            # Dynamické vykreslení parametrů
             if shader_props.parameters:
                 param_box = main_box.box()
-                row = param_box.row()
-                row.label(text="Parametry", icon='PROPERTIES')
+                param_box.label(text="Parametry", icon='PROPERTIES')
                 for param in shader_props.parameters:
-                    # Speciální UI pro Color1 a Color2 s tlačítkem
                     if param.name in ["Color1", "Color2"]:
                         row = param_box.row(align=True)
                         row.prop(param, "vector_value", text=param.name)
                         op = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
                         op.layer_name = param.name
-                    else: # Běžné UI pro ostatní parametry
+                    else:
                         row = param_box.row(align=True)
                         if param.type == "float":
                             row.prop(param, "float_value", text=param.name)
@@ -102,10 +97,11 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
-
         box = layout.box()
         box.label(text="Collider Tools", icon='PHYSICS')
-        box.operator("vmdl.generate_collider_mesh", text="Generate Collider", icon='MOD_BUILD')
+        col_poll = obj and obj.type == 'MESH' and obj.get("vmdl_type") == "MESH"
+        op = box.operator("vmdl.generate_collider_mesh", text="Generate Collider", icon='MOD_BUILD')
+        op.poll = col_poll
 
         if obj and obj.get("vmdl_type") == "COLLIDER":
             col_props = obj.vmdl_collider

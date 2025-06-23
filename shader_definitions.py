@@ -1,29 +1,30 @@
 # Toto je centrální definiční soubor pro všechny shadery.
 # Můžete zde snadno přidávat nové shadery nebo upravovat existující.
-# Plugin se automaticky přizpůsobí změnám v tomto souboru.
+
+# Společná sada PBR parametrů pro většinu fyzikálních shaderů
+BASE_PBR_PARAMETERS = [
+    {"name": "pbrtweak_metallic", "type": "float", "default": 0.0},
+    {"name": "pbrtweak_roughness", "type": "float", "default": 0.8},
+    {"name": "pbrtweak_ao", "type": "float", "default": 1.0},
+    {"name": "pbrtweak_sheen", "type": "float", "default": 0.0},
+    {"name": "bumptiness", "type": "float", "default": 1.0},
+    {"name": "wetnessmultiplier", "type": "float", "default": 1.0},
+    {"name": "pbrglassiness", "type": "float", "default": 0.0},
+    {"name": "pbrcavityrange", "type": "float", "default": 0.0},
+    # Naše interní barvy pro řízení v Blenderu
+    {"name": "Color1", "type": "vector4", "default": (0.5, 0.8, 1.0, 1.0)}, # G->Roughness, B->Normal, A->Saturation
+    {"name": "Color2", "type": "vector4", "default": (0.0, 0.0, 0.0, 1.0)}, # R,G,B -> Blend
+]
 
 SHADER_DEFINITIONS = {
-    # Název shaderu, jak ho používá hra
     "ShipStandard.vfx": {
-        "parameters": [
-            # Parametry jsou definovány jako slovníky s názvem, typem a výchozí hodnotou
+        "parameters": BASE_PBR_PARAMETERS + [
+            # Parametry specifické pouze pro ShipStandard
             {"name": "tintpalettefactor", "type": "float", "default": 0.0},
             {"name": "specmapintmask", "type": "vector4", "default": (1.0, 0.0, 0.0, 0.0)},
-            {"name": "pbrglassiness", "type": "float", "default": 0.0},
-            {"name": "pbrcavityrange", "type": "float", "default": 0.0},
-            {"name": "pbrtweak_metallic", "type": "float", "default": 0.0},
-            {"name": "pbrtweak_sheen", "type": "float", "default": 0.0},
-            {"name": "pbrtweak_roughness", "type": "float", "default": 0.8},
-            {"name": "pbrtweak_ao", "type": "float", "default": 1.0},
-            {"name": "bumptiness", "type": "float", "default": 1.0},
-            {"name": "wetnessmultiplier", "type": "float", "default": 1.0},
             {"name": "usepaintdetail", "type": "bool", "default": False},
-            # Přidány Color1 a Color2 pro kompatibilitu s naším systémem
-            {"name": "Color1", "type": "vector4", "default": (0.5, 0.5, 1.0, 1.0)},
-            {"name": "Color2", "type": "vector4", "default": (0.0, 0.0, 0.0, 1.0)},
         ],
         "textures": [
-            # Textury jsou jednodušší, mají jen 'name' (pro engine) a 'label' (pro UI)
             {"name": "tintpalettetex", "label": "Tint Palette"},
             {"name": "diffusetex", "label": "Diffuse Texture"},
             {"name": "detailtexarrayn", "label": "Detail Normal Array"},
@@ -34,15 +35,28 @@ SHADER_DEFINITIONS = {
         ]
     },
     "Standard_dirt.vfx": {
-        "parameters": [
-            {"name": "Color1", "type": "vector4", "default": (0.5, 0.5, 1.0, 1.0)},
-            {"name": "Color2", "type": "vector4", "default": (0.0, 0.0, 0.0, 1.0)},
+        "parameters": BASE_PBR_PARAMETERS + [
+            # Parametry specifické pro Standard_dirt
             {"name": "dirt_strength", "type": "float", "default": 1.0},
         ],
         "textures": [
             {"name": "albedo", "label": "Albedo Texture"},
             {"name": "normal", "label": "Normal Texture"},
             {"name": "dirt", "label": "Dirt Texture"},
+        ]
+    },
+    "Layered4.vfx": {
+        "parameters": BASE_PBR_PARAMETERS + [
+            # Parametry specifické pro Layered4
+            {"name": "global_tint", "type": "vector4", "default": (1.0, 1.0, 1.0, 1.0)},
+            {"name": "uv_scale", "type": "vector4", "default": (1.0, 1.0, 1.0, 1.0)}, # Používá se jako vec2, ale pro konzistenci
+        ],
+        "textures": [
+            {"name": "layer1tex", "label": "Layer 1 (Base)"},
+            {"name": "layer2tex", "label": "Layer 2 (Red)"},
+            {"name": "layer3tex", "label": "Layer 3 (Green)"},
+            {"name": "layer4tex", "label": "Layer 4 (Blue)"},
+            {"name": "bumptex", "label": "Normal/Bump Texture"},
         ]
     },
     "ShipGlass.vfx": {
@@ -56,5 +70,4 @@ SHADER_DEFINITIONS = {
              {"name": "opacity_map", "label": "Opacity Map"},
         ]
     },
-    # Zde můžete přidat definice pro 'Layered4.vfx', 'Character.vfx' atd.
 }

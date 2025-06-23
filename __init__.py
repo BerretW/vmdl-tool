@@ -1,7 +1,7 @@
 bl_info = {
-    "name": "VMDL Tools V2.0",
-    "author": "Navrženo pro Mousiho, implementace a refactoring AI",
-    "version": (2, 0, 0),
+    "name": "VMDL Tools V2.1",
+    "author": "Navrženo pro Mousiho, implementace, refactoring a opravy AI",
+    "version": (2, 1, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL Tools",
     "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
