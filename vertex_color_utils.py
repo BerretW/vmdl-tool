@@ -4,6 +4,39 @@ import bpy
 DEFAULT_COLOR_1 = (0.0, 0.8, 1.0, 1.0) # R:Tint (0=začátek palety), G:Roughness, B:Normal, A:Saturation
 DEFAULT_COLOR_2 = (0.0, 0.0, 0.0, 1.0) # R,G,B:Blend -> výchozí je 0 (základní vrstva)
 
+class VMDL_OT_toggle_vertex_color_view(bpy.types.Operator):
+    """Přepne zobrazení viewportu pro náhled vybrané vertex color vrstvy."""
+    bl_idname = "vmdl.toggle_vertex_color_view"
+    bl_label = "Toggle Vertex Color Preview"
+    bl_description = "Zobrazí tuto vertex color vrstvu ve viewportu"
+    
+    layer_name: bpy.props.StringProperty()
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        mesh = obj.data
+        space = context.space_data
+        
+        if self.layer_name not in mesh.vertex_colors:
+            self.report({'WARNING'}, f"Vrstva '{self.layer_name}' na objektu neexistuje.")
+            return {'CANCELLED'}
+        
+        # Přepnutí do Solid view s Vertex barvami
+        if space.shading.type != 'SOLID' or space.shading.color_type != 'VERTEX' or mesh.vertex_colors.active_render.name != self.layer_name:
+            space.shading.type = 'SOLID'
+            space.shading.light = 'FLAT'
+            space.shading.color_type = 'VERTEX'
+            mesh.vertex_colors.active_render = mesh.vertex_colors[self.layer_name]
+        else: # Pokud už jsme v tomto módu, přepneme zpět na materiál
+            space.shading.color_type = 'MATERIAL'
+            mesh.vertex_colors.active_render = None
+
+        return {'FINISHED'}
+
 class VMDL_OT_fill_vertex_color(bpy.types.Operator):
     """Aplikuje vybranou barvu a přepne do Vertex Paint módu."""
     bl_idname = "vmdl.fill_vertex_color"

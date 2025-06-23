@@ -50,17 +50,26 @@ class VMDL_PT_material_panel(bpy.types.Panel):
         mat = obj.active_material
 
         box = layout.box()
-        box.label(text="Vytvořit materiál", icon='MATERIAL')
-        box.operator("vmdl.create_shader_material", text="Create New Material", icon='ADD')
+        box.label(text="Správa Materiálu", icon='MATERIAL')
+        row = box.row(align=True)
+        row.operator("vmdl.create_shader_material", text="Nový", icon='ADD')
+        row.operator("vmdl.save_material_preset", text="Uložit Preset", icon='EXPORT')
+        row.operator("vmdl.load_material_preset", text="Načíst Preset", icon='IMPORT')
 
         if mat and hasattr(mat, "vmdl_shader"):
             shader_props = mat.vmdl_shader
             
             main_box = layout.box()
             main_box.label(text=f"Materiál: {mat.name}", icon='NODE_MATERIAL')
-            main_box.prop(shader_props, "shader_name", text="")
             
-            # Nové tlačítko pro rychlé nastavení
+            # Validace shaderu
+            if shader_props.shader_name not in SHADER_DEFINITIONS:
+                warning_box = main_box.box()
+                warning_box.label(text="Neplatný shader!", icon='ERROR')
+                warning_box.operator("vmdl.fix_invalid_shader", text="Opravit Shader")
+                return
+
+            main_box.prop(shader_props, "shader_name", text="")
             main_box.operator("vmdl.set_default_vertex_colors", text="Nastavit výchozí Vertex Colors", icon='BRUSH_DATA')
             
             if shader_props.textures:
@@ -76,8 +85,16 @@ class VMDL_PT_material_panel(bpy.types.Panel):
                     if param.name in ["Color1", "Color2"]:
                         row = param_box.row(align=True)
                         row.prop(param, "vector_value", text=param.name)
-                        op = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
-                        op.layer_name = param.name
+                        op_fill = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
+                        op_fill.layer_name = param.name
+                        
+                        is_active_preview = (context.space_data.shading.type == 'SOLID' and 
+                                             context.space_data.shading.color_type == 'VERTEX' and 
+                                             obj.data.vertex_colors.active_render and
+                                             obj.data.vertex_colors.active_render.name == param.name)
+                        
+                        op_view = row.operator("vmdl.toggle_vertex_color_view", text="", icon='HIDE_ON' if is_active_preview else 'HIDE_OFF')
+                        op_view.layer_name = param.name
                     else:
                         row = param_box.row(align=True)
                         if param.type == "float":
@@ -87,7 +104,6 @@ class VMDL_PT_material_panel(bpy.types.Panel):
                         elif param.type == "bool":
                             row.prop(param, "bool_value", text=param.name)
 
-# Ostatní panely (Collider, Mountpoint, Export) beze změny
 class VMDL_PT_collider_panel(bpy.types.Panel):
     bl_label = "Colliders"
     bl_idname = "VMDL_PT_collider_panel"

@@ -1,4 +1,6 @@
 import bpy
+import json
+from bpy_extras.io_utils import ImportHelper, ExportHelper
 from .shader_definitions import SHADER_DEFINITIONS
 
 class VMDL_OT_load_image(bpy.types.Operator):
@@ -39,6 +41,107 @@ class VMDL_OT_load_image(bpy.types.Operator):
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+
+class VMDL_OT_save_material_preset(bpy.types.Operator, ExportHelper):
+    """Uloží aktuální VMDL nastavení materiálu do JSON presetu."""
+    bl_idname = "vmdl.save_material_preset"
+    bl_label = "Save Material Preset"
+    filename_ext = ".mat.json"
+    filter_glob: bpy.props.StringProperty(default="*.mat.json", options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        return context.material and hasattr(context.material, "vmdl_shader")
+
+    def execute(self, context):
+        mat = context.material
+        shader_props = mat.vmdl_shader
+        mat_data = {'shader': shader_props.shader_name, 'parameters': {}, 'textures': {}}
+        
+        for param in shader_props.parameters:
+            if param.type == "float": mat_data['parameters'][param.name] = param.float_value
+            elif param.type == "vector4": mat_data['parameters'][param.name] = list(param.vector_value)
+            elif param.type == "bool": mat_data['parameters'][param.name] = param.bool_value
+        
+        for tex in shader_props.textures:
+            if tex.image and tex.image.filepath:
+                mat_data['textures'][tex.name] = bpy.path.abspath(tex.image.filepath)
+        
+        with open(self.filepath, 'w') as f:
+            json.dump(mat_data, f, indent=4)
+            
+        self.report({'INFO'}, f"Preset uložen do {self.filepath}")
+        return {'FINISHED'}
+
+class VMDL_OT_load_material_preset(bpy.types.Operator, ImportHelper):
+    """Načte VMDL nastavení materiálu z JSON presetu."""
+    bl_idname = "vmdl.load_material_preset"
+    bl_label = "Load Material Preset"
+    filename_ext = ".mat.json"
+    filter_glob: bpy.props.StringProperty(default="*.mat.json", options={'HIDDEN'})
+    
+    @classmethod
+    def poll(cls, context):
+        return context.material
+
+    def execute(self, context):
+        mat = context.material
+        try:
+            with open(self.filepath, 'r') as f:
+                mat_data = json.load(f)
+        except Exception as e:
+            self.report({'ERROR'}, f"Chyba při čtení souboru presetu: {e}")
+            return {'CANCELLED'}
+        
+        shader_name = mat_data.get('shader')
+        if not shader_name or shader_name not in SHADER_DEFINITIONS:
+            self.report({'ERROR'}, f"Shader '{shader_name}' v presetu neexistuje v definicích.")
+            return {'CANCELLED'}
+        
+        # Přepnutí shaderu spustí update, který vyčistí properties
+        mat.vmdl_shader.shader_name = shader_name
+        
+        def apply_data():
+            shader_props = mat.vmdl_shader
+            for name, value in mat_data.get('parameters', {}).items():
+                if name in shader_props.parameters:
+                    param = shader_props.parameters[name]
+                    if param.type == 'float': param.float_value = value
+                    elif param.type == 'vector4': param.vector_value = value
+                    elif param.type == 'bool': param.bool_value = value
+            
+            for name, path in mat_data.get('textures', {}).items():
+                if name in shader_props.textures:
+                    try:
+                        abs_path = bpy.path.abspath(path)
+                        shader_props.textures[name].image = bpy.data.images.load(abs_path, check_existing=True)
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Nepodařilo se načíst texturu '{path}': {e}")
+            
+            self.report({'INFO'}, f"Preset '{os.path.basename(self.filepath)}' načten.")
+        
+        bpy.app.timers.register(apply_data)
+        return {'FINISHED'}
+
+class VMDL_OT_fix_invalid_shader(bpy.types.Operator):
+    """Opraví neplatný shader na materiálu."""
+    bl_idname = "vmdl.fix_invalid_shader"
+    bl_label = "Fix Invalid Shader"
+    
+    @classmethod
+    def poll(cls, context):
+        return context.material
+        
+    def execute(self, context):
+        mat = context.material
+        if SHADER_DEFINITIONS:
+            default_shader = sorted(SHADER_DEFINITIONS.keys())[0]
+            mat.vmdl_shader.shader_name = default_shader
+            self.report({'INFO'}, f"Shader opraven na výchozí: {default_shader}")
+        else:
+            self.report({'ERROR'}, "Nejsou definovány žádné shadery.")
+            return {'CANCELLED'}
+        return {'FINISHED'}
 
 
 def setup_principled_node_graph(mat):
@@ -85,7 +188,6 @@ def setup_principled_node_graph(mat):
         links.new(sep_c1.outputs['Blue'], norm_map.inputs['Strength'])
         links.new(norm_map.outputs['Normal'], bsdf.inputs['Normal'])
 
-    # --- Zpracování Base Color ---
     base_color_input = bsdf.inputs['Base Color']
     last_color_output = None
 
@@ -95,32 +197,27 @@ def setup_principled_node_graph(mat):
         albedo_tex.location = (-700, 300)
         last_color_output = albedo_tex.outputs['Color']
 
-    # --- NOVÁ LOGIKA PRO TINT PALETTE ---
     tint_palette_tex_prop = next((t for t in shader_props.textures if "tintpalettetex" in t.name.lower()), None)
     if tint_palette_tex_prop and tint_palette_tex_prop.image and last_color_output:
         tint_tex = nodes.new('ShaderNodeTexImage'); tint_tex.label = "VMDL_TintPalette"; tint_tex.image = tint_palette_tex_prop.image
         tint_tex.location = (-700, 0)
         
-        # Použijeme R kanál z Color1 pro posun UV souřadnic
         combine_uv = nodes.new('ShaderNodeCombineXYZ'); combine_uv.label = "VMDL_TintUV"; combine_uv.location = (-950, 0)
         links.new(sep_c1.outputs['Red'], combine_uv.inputs['X'])
         links.new(combine_uv.outputs['Vector'], tint_tex.inputs['Vector'])
         
-        # Smícháme barvu z palety s albedem
         mix_tint = nodes.new('ShaderNodeMix'); mix_tint.data_type = "RGBA"; mix_tint.blend_type = 'OVERLAY'
         mix_tint.label = "VMDL_TintMix"; mix_tint.location = (-450, 200)
         
         links.new(last_color_output, mix_tint.inputs['A'])
         links.new(tint_tex.outputs['Color'], mix_tint.inputs['B'])
         
-        # Propojíme globální faktor tintu
         tint_factor_param = shader_props.parameters.get("tintpalettefactor")
         if tint_factor_param:
             mix_tint.inputs['Factor'].default_value = tint_factor_param.float_value
             
         last_color_output = mix_tint.outputs['Result']
     
-    # --- LOGIKA PRO LAYERED4 ---
     if shader_name == "Layered4.vfx" and last_color_output:
         sep_c2 = nodes.new('ShaderNodeSeparateColor'); sep_c2.label = "VMDL_SepC2"; sep_c2.location = (-1000, -200)
         links.new(attr_c2.outputs['Color'], sep_c2.inputs['Color'])
