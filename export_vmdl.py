@@ -4,38 +4,27 @@ import os
 import struct
 from bpy_extras.io_utils import ExportHelper
 
+# Inspekční funkce zůstává stejná, je užitečná
 def _inspect_exported_glb(filepath):
-    """
-    Pomocná funkce, která otevře GLB soubor, najde JSON chunk 
-    a vypíše obsah klíče 'extras' do systémové konzole.
-    """
     print("\n================= DEBUG INSPEKCE EXPORTU ==================")
     try:
         with open(filepath, 'rb') as f:
             magic = f.read(4)
             if magic != b'glTF':
-                print("[INSPEKCE CHYBA] Soubor nemá platný 'glTF' magic number.")
-                return
-
+                print("[INSPEKCE CHYBA] Soubor nemá platný 'glTF' magic number."); return
             version = struct.unpack('<I', f.read(4))[0]
             f.read(4)
-
             json_chunk_length = struct.unpack('<I', f.read(4))[0]
             json_chunk_type = f.read(4)
-
             if json_chunk_type != b'JSON':
-                print(f"[INSPEKCE CHYBA] První chunk není JSON, ale {json_chunk_type}.")
-                return
-            
+                print(f"[INSPEKCE CHYBA] První chunk není JSON, ale {json_chunk_type}."); return
             json_data = f.read(json_chunk_length)
             gltf_dict = json.loads(json_data.decode('utf-8'))
-
             if 'extras' in gltf_dict:
                 print("✅ V souboru byl nalezen klíč 'extras'. Jeho obsah je:")
                 print(json.dumps(gltf_dict['extras'], indent=2, ensure_ascii=False))
             else:
                 print("❌ V JSON části souboru chybí klíč 'extras'!")
-
     except Exception as e:
         print(f"[INSPEKCE CHYBA] Během čtení souboru došlo k chybě: {e}")
     finally:
@@ -43,16 +32,8 @@ def _inspect_exported_glb(filepath):
 
 
 class VMDLExportProperties(bpy.types.PropertyGroup):
-    version: bpy.props.FloatProperty(
-        name="VMDL Version",
-        default=3.0,
-        description="Version number for VMDL metadata"
-    )
-    debug_show_extras: bpy.props.BoolProperty(
-        name="Debug: Zobrazit Extras",
-        description="Po exportu vypíše obsah 'extras' dat do systémové konzole pro kontrolu",
-        default=False
-    )
+    version: bpy.props.FloatProperty(name="VMDL Version", default=3.0, description="Version number for VMDL metadata")
+    debug_show_extras: bpy.props.BoolProperty(name="Debug: Zobrazit Extras", description="Po exportu vypíše obsah 'extras' dat do systémové konzole pro kontrolu", default=False)
 
 
 class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
@@ -67,22 +48,13 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
             if obj.vmdl_enum_type == "ROOT":
                 root_obj = obj
                 break
-        
-        if root_obj:
-             self.filepath = root_obj.name.replace("_VMDL", "") + self.filename_ext
-        elif context.scene.name:
-            self.filepath = context.scene.name + self.filename_ext
-        else:
-            self.filepath = "untitled" + self.filename_ext
-            
-        # ======================================================================
-        # OPRAVA: Metodě super().invoke() se nepředává 'self' explicitně.
-        # Python ho předá automaticky.
-        # ======================================================================
+        if root_obj: self.filepath = root_obj.name.replace("_VMDL", "") + self.filename_ext
+        elif context.scene.name: self.filepath = context.scene.name + self.filename_ext
+        else: self.filepath = "untitled" + self.filename_ext
         return super().invoke(context, event)
 
     def execute(self, context):
-        # ... (zbytek kódu execute zůstává naprosto stejný) ...
+        # Sběr dat (tato část je v pořádku a zůstává stejná)
         start_obj = context.active_object
         root_obj = None
         if start_obj:
@@ -134,26 +106,40 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
                 obj_data['up_vector'] = list(obj.vmdl_mountpoint.up_vector)
             vmdl_extras['objects'][obj.name] = obj_data
 
+        # Příprava na export - výběr objektů
         bpy.ops.object.select_all(action='DESELECT')
         for obj in all_objs_to_export: obj.select_set(True)
         context.view_layer.objects.active = root_obj
 
+        # ======================================================================
+        # ZÁSADNÍ ZMĚNA: Použijeme přímý import a volání exportní funkce.
+        # Toto je robustní a spolehlivá metoda.
+        # ======================================================================
         try:
-            bpy.context.scene['gltf_extras'] = vmdl_extras
-            bpy.ops.export_scene.gltf(
-                filepath=self.filepath,
-                use_selection=True,
-                export_format='GLB',
-                export_extras=True,
-                export_attributes=True,
-                export_image_format='AUTO'
-            )
+            # Importujeme funkci přímo z glTF addonu
+            from io_scene_gltf2.io.export_gltf2 import save as gltf2_save
+
+            # Připravíme slovník s nastavením pro exportní funkci
+            export_settings = {
+                'filepath': self.filepath,
+                'gltf_format': 'GLB',
+                'export_extras': True,
+                'use_selection': True,
+                'export_attributes': True,
+                'export_image_format': 'AUTO',
+                # TOTO JE KLÍČOVÉ: předáváme naše data přímo jako argument
+                'gltf_extras': vmdl_extras
+            }
+            
+            # Zavoláme přímou exportní funkci
+            gltf2_save(context, export_settings)
+
         except Exception as e:
             self.report({'ERROR'}, f"Export GLB selhal: {e}")
+            # Důležité: při chybě vypíšeme i traceback pro lepší debugování
+            import traceback
+            traceback.print_exc()
             return {'CANCELLED'}
-        finally:
-            if 'gltf_extras' in bpy.context.scene:
-                del bpy.context.scene['gltf_extras']
 
         self.report({'INFO'}, f"Export VMDL do {self.filepath} byl úspěšný.")
         
