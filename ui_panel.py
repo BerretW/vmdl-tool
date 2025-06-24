@@ -129,6 +129,13 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
             box.prop(col_props, "collider_type", text="Typ")
             box.operator("vmdl.toggle_collider_shading", text="Toggle Preview Shading", icon='SHADING_RENDERED')
 
+
+# ... (začátek souboru ui_panel.py) ...
+
+
+# ... (zbytek souboru ui_panel.py) ...
+
+
 class VMDL_PT_mountpoint_panel(bpy.types.Panel):
     bl_label = "Mountpoints"
     bl_idname = "VMDL_PT_mountpoint_panel"
@@ -166,13 +173,18 @@ class VMDL_PT_export_panel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         for obj in context.scene.objects:
-            # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
             if obj.vmdl_enum_type == "ROOT":
                 return True
         return False
 
     def draw(self, context):
         layout = self.layout
+        export_props = context.scene.vmdl_export # <--- PŘIDÁNO
+        
         box = layout.box()
         box.label(text="Export VMDL GLB", icon='EXPORT')
         box.operator("vmdl.export_glb", text="Export .glb", icon='PACKAGE')
+        
+        # <--- PŘIDÁNO: Zaškrtávátko pro debug výpis --->
+        box.prop(export_props, "debug_show_extras")
+        
