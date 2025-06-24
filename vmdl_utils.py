@@ -7,7 +7,9 @@ class VMDL_OT_create_vmdl_object(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.active_object and context.active_object.type == 'MESH'
+        # Můžeme vytvořit VMDL i z objektu, který ještě není v hierarchii
+        obj = context.active_object
+        return obj and obj.type == 'MESH' and obj.get("vmdl_type") is None
 
     def execute(self, context):
         source_obj = context.active_object
@@ -16,13 +18,16 @@ class VMDL_OT_create_vmdl_object(bpy.types.Operator):
         bpy.ops.object.empty_add(type='PLAIN_AXES', location=source_obj.location)
         root = context.active_object
         root.name = source_obj.name + "_VMDL"
-        root["vmdl_type"] = "ROOT"
+        # OPRAVA: Použijeme EnumProperty pro nastavení typu
+        root.vmdl_enum_type = "ROOT"
 
         # Přenastavíme source_obj na VMDL MESH a připarentujeme
-        source_obj.name = source_obj.name + ".model"
+        original_name = source_obj.name
+        source_obj.name = original_name + ".model"
         source_obj.parent = root
         source_obj.location = (0, 0, 0) # Reset pozice vůči parentovi
-        source_obj["vmdl_type"] = "MESH"
+        # OPRAVA: Použijeme EnumProperty pro nastavení typu
+        source_obj.vmdl_enum_type = "MESH"
 
         # Duplikuj .model → .col
         bpy.ops.object.select_all(action='DESELECT')
@@ -30,12 +35,13 @@ class VMDL_OT_create_vmdl_object(bpy.types.Operator):
         context.view_layer.objects.active = source_obj
         bpy.ops.object.duplicate()
         col = context.selected_objects[0]
-        col.name = source_obj.name.replace(".model", ".col")
+        col.name = original_name + ".col" # Použijeme původní název pro konzistenci
         col.parent = root
         col.location = (0, 0, 0)
-        col["vmdl_type"] = "COLLIDER"
+        # OPRAVA: Použijeme EnumProperty pro nastavení typu
+        col.vmdl_enum_type = "COLLIDER"
         
-        # Vytvoříme výchozí Vertex Color vrstvy na obou objektech
+        # Vytvoříme výchozí Vertex Color vrstvy na obou meshech
         for obj in [source_obj, col]:
             if 'Color1' not in obj.data.vertex_colors:
                 obj.data.vertex_colors.new(name="Color1")

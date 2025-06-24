@@ -4,7 +4,6 @@ import os
 from bpy_extras.io_utils import ExportHelper
 
 class VMDLExportProperties(bpy.types.PropertyGroup):
-    # Tato property group zůstává pro případná budoucí nastavení exportu
     version: bpy.props.FloatProperty(
         name="VMDL Version",
         default=3.0,
@@ -18,26 +17,38 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
     filter_glob: bpy.props.StringProperty(default="*.glb", options={'HIDDEN'})
 
     def invoke(self, context, event):
-        # Defaultní název souboru podle názvu scény
         if context.scene.name:
             self.filepath = context.scene.name + self.filename_ext
         else:
             self.filepath = "untitled" + self.filename_ext
-        return super().invoke(self, context, event)
+        return super().invoke(context, event)
 
     def execute(self, context):
-        # Najdi VMDL root objekt
-        root_obj = context.active_object
-        if not root_obj or root_obj.get("vmdl_type") != "ROOT":
-            node = root_obj
-            while node and node.parent:
+        # --- OPRAVA: Robustnější způsob nalezení VMDL Root objektu ---
+        start_obj = context.active_object
+        
+        if not start_obj:
+            self.report({'ERROR'}, "Není vybrán žádný aktivní objekt pro export.")
+            return {'CANCELLED'}
+
+        root_obj = None
+        # Zkontrolujeme, zda aktivní objekt není sám root
+        if start_obj.get("vmdl_type") == "ROOT":
+            root_obj = start_obj
+        else:
+            # Pokud ne, projdeme hierarchii směrem nahoru
+            node = start_obj
+            while node.parent:
                 node = node.parent
                 if node.get("vmdl_type") == "ROOT":
                     root_obj = node
                     break
-            else:
-                self.report({'ERROR'}, "Musíte vybrat objekt z VMDL hierarchie pro export.")
-                return {'CANCELLED'}
+        
+        # Pokud jsme po prohledání nenašli žádný root, ukončíme to s chybou
+        if not root_obj:
+            self.report({'ERROR'}, "Musíte vybrat objekt z VMDL hierarchie pro export.")
+            return {'CANCELLED'}
+        # --- Konec opravy ---
 
         # --- KROK 1: Sběr všech VMDL metadat ---
         vmdl_extras = {
@@ -78,12 +89,11 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
 
             for t in props.textures:
                 if t.image:
-                    # GLTF exporter se postará o texturu, my si jen uložíme její název
                     mat_data['textures'][t.name] = t.image.name
             
             vmdl_extras['materials'][mat.name] = mat_data
 
-        # Sběr dat o objektech (typ, collider, mountpoint)
+        # Sběr dat o objektech
         for obj in all_objs_to_export:
             obj_type = obj.get("vmdl_type")
             if not obj_type:
@@ -100,30 +110,26 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
             vmdl_extras['objects'][obj.name] = obj_data
 
         # --- KROK 2: Export do GLB s metadaty v 'extras' ---
-        
-        # Výběr všech objektů v hierarchii pro export
         bpy.ops.object.select_all(action='DESELECT')
         for obj in all_objs_to_export:
             obj.select_set(True)
         context.view_layer.objects.active = root_obj
 
         try:
-            # Uložíme naše data do dočasné scéna property, kterou si glTF exporter přečte
             bpy.context.scene['gltf_export_extras'] = vmdl_extras
             
             bpy.ops.export_scene.gltf(
                 filepath=self.filepath,
                 use_selection=True,
                 export_format='GLB',
-                export_extras=True, # DŮLEŽITÉ: Povolí export 'extras'
-                export_attributes=True, # DŮLEŽITÉ: Exportuje Vertex Colors
-                export_image_format='AUTO' # Necháme Blender, aby se rozhodl
+                export_extras=True,
+                export_attributes=True,
+                export_image_format='AUTO'
             )
         except Exception as e:
             self.report({'ERROR'}, f"Export GLB selhal: {e}")
             return {'CANCELLED'}
         finally:
-            # Uklidíme po sobě
             if 'gltf_export_extras' in bpy.context.scene:
                 del bpy.context.scene['gltf_export_extras']
 
