@@ -17,7 +17,6 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
     filter_glob: bpy.props.StringProperty(default="*.glb", options={'HIDDEN'})
 
     def invoke(self, context, event):
-        # Najdeme root, abychom mohli pojmenovat soubor podle něj
         root_obj = None
         for obj in context.scene.objects:
             if obj.vmdl_enum_type == "ROOT":
@@ -33,16 +32,13 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
         return super().invoke(context, event)
 
     def execute(self, context):
-        # --- Robustní způsob nalezení VMDL Root objektu ---
         start_obj = context.active_object
         root_obj = None
 
-        # 1. Zkusit aktivní objekt a jeho parenty
         if start_obj:
             if start_obj.vmdl_enum_type == "ROOT":
                 root_obj = start_obj
             else:
-                # Hledání root přes parenty
                 node = start_obj
                 while node.parent:
                     node = node.parent
@@ -50,7 +46,6 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
                         root_obj = node
                         break
 
-        # 2. Pokud se nenašel, projít všechny objekty ve scéně a najít první root
         if not root_obj:
             for obj in bpy.context.scene.objects:
                 if obj.vmdl_enum_type == "ROOT":
@@ -79,7 +74,6 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
             self.report({'ERROR'}, "VMDL Root neobsahuje žádný viditelný MESH objekt.")
             return {'CANCELLED'}
 
-        # Sběr dat o materiálech
         unique_materials = set(
             mat for o in all_objs_to_export if o.type == 'MESH' for mat in o.data.materials if mat
         )
@@ -104,7 +98,6 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
             
             vmdl_extras['materials'][mat.name] = mat_data
 
-        # Sběr dat o objektech
         for obj in all_objs_to_export:
             obj_type = obj.vmdl_enum_type
             if obj_type == 'NONE':
@@ -127,16 +120,18 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
         context.view_layer.objects.active = root_obj
 
         try:
-            # OPRAVA: Správný název pro custom property na scéně je 'extras'.
-            # Standardní Blender GLTF exporter toto automaticky přečte a vloží 
-            # do top-level "extras" pole v GLB souboru.
-            bpy.context.scene['extras'] = vmdl_extras
+            # ======================================================================
+            # FINÁLNÍ OPRAVA:
+            # Vytvoříme na scéně dočasnou custom property se specifickým jménem
+            # 'gltf_extras', kterou exporter automaticky rozpozná a zpracuje.
+            # ======================================================================
+            bpy.context.scene['gltf_extras'] = vmdl_extras
             
             bpy.ops.export_scene.gltf(
                 filepath=self.filepath,
                 use_selection=True,
                 export_format='GLB',
-                export_extras=True,
+                export_extras=True, # Toto je stále potřeba, aby exporter custom props hledal
                 export_attributes=True,
                 export_image_format='AUTO'
             )
@@ -144,9 +139,9 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
             self.report({'ERROR'}, f"Export GLB selhal: {e}")
             return {'CANCELLED'}
         finally:
-            # OPRAVA: Uklidíme po sobě správnou property.
-            if 'extras' in bpy.context.scene:
-                del bpy.context.scene['extras']
+            # Uklidíme po sobě dočasnou property, ať nezůstává ve scéně.
+            if 'gltf_extras' in bpy.context.scene:
+                del bpy.context.scene['gltf_extras']
 
         self.report({'INFO'}, f"Export VMDL do {self.filepath} byl úspěšný.")
         return {'FINISHED'}

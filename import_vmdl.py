@@ -15,7 +15,13 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
         objects_before = set(bpy.data.objects)
         
         try:
-            bpy.ops.import_scene.gltf(filepath=self.filepath, loglevel=50)
+            # ======================================================================
+            # KLÍČOVÁ OPRAVA:
+            # Musíme explicitně říct importeru, aby hledal a načítal
+            # 'extras' data. Bez tohoto parametru je ignoruje.
+            # ======================================================================
+            bpy.ops.import_scene.gltf(filepath=self.filepath, loglevel=50, import_extras=True)
+            
         except Exception as e:
             self.report({'ERROR'}, f"Import GLB selhal: {e}")
             return {'CANCELLED'}
@@ -40,11 +46,11 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
 
             vmdl_type = obj_data.get('vmdl_type')
             if vmdl_type:
-                # OPRAVA: Používáme vmdl_enum_type pro konzistentní zápis
                 obj.vmdl_enum_type = vmdl_type
             
             if vmdl_type == 'COLLIDER':
-                obj.vmdl_collider.collider_type = obj_data.get('collider_type', 'COL_METAL_SOLID')
+                collider_type_from_extras = obj_data.get('collider_type', 'COL_METAL_SOLID')
+                obj.vmdl_collider.collider_type = collider_type_from_extras
             elif vmdl_type == 'MOUNTPOINT':
                 obj.vmdl_mountpoint.forward_vector = obj_data.get('forward_vector', (0,1,0))
                 obj.vmdl_mountpoint.up_vector = obj_data.get('up_vector', (0,0,1))
