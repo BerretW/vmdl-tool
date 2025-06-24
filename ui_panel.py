@@ -165,25 +165,17 @@ class VMDL_PT_export_panel(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        obj = context.active_object
-        if not obj:
-            return False
-        # Hledáme root v hierarchii
-        if obj.get("vmdl_type") == "ROOT":
-            return True
-        node = obj
-        while node.parent:
-            node = node.parent
-            if node.get("vmdl_type") == "ROOT":
+        # Zobrazit panel, pokud ve scéně existuje jakýkoliv VMDL Root objekt.
+        # Je to uživatelsky přívětivější než vyžadovat konkrétní výběr.
+        for obj in context.scene.objects:
+            if obj.get("vmdl_type") == "ROOT":
                 return True
         return False
 
     def draw(self, context):
         layout = self.layout
-        obj = context.active_object
         box = layout.box()
         box.label(text="Export VMDL GLB", icon='EXPORT')
-        if obj and obj.get("vmdl_type") in ("ROOT", "MESH", "COLLIDER", "MOUNTPOINT"):
-            box.operator("vmdl.export_glb", text="Export .glb", icon='PACKAGE')
-        else:
-            box.label(text="Vyber objekt z VMDL hierarchie", icon='INFO')
+        # Díky upravené `poll` metodě víme, že ve scéně je co exportovat.
+        # Operátor je dostatečně chytrý, aby si našel VMDL root sám.
+        box.operator("vmdl.export_glb", text="Export .glb", icon='PACKAGE')

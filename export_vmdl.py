@@ -24,22 +24,24 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
         return super().invoke(context, event)
 
     def execute(self, context):
-        # --- OPRAVA: Robustnější způsob nalezení VMDL Root objektu ---
+        # --- Robustní způsob nalezení VMDL Root objektu ---
         start_obj = context.active_object
         root_obj = None
 
-        if start_obj and start_obj.get("vmdl_type") == "ROOT":
-            root_obj = start_obj
-        elif start_obj:
-            # Hledání root přes parenty
-            node = start_obj
-            while node.parent:
-                node = node.parent
-                if node.get("vmdl_type") == "ROOT":
-                    root_obj = node
-                    break
+        # 1. Zkusit aktivní objekt a jeho parenty
+        if start_obj:
+            if start_obj.get("vmdl_type") == "ROOT":
+                root_obj = start_obj
+            else:
+                # Hledání root přes parenty
+                node = start_obj
+                while node.parent:
+                    node = node.parent
+                    if node.get("vmdl_type") == "ROOT":
+                        root_obj = node
+                        break
 
-        # Fallback: projdi všechny objekty ve scéně a najdi první root
+        # 2. Pokud se nenašel, projít všechny objekty ve scéně a najít první root
         if not root_obj:
             for obj in bpy.context.scene.objects:
                 if obj.get("vmdl_type") == "ROOT":
@@ -49,26 +51,6 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
         if not root_obj:
             self.report({'ERROR'}, "Nelze najít žádný VMDL Root objekt pro export.")
             return {'CANCELLED'}
-
-
-        root_obj = None
-        # Zkontrolujeme, zda aktivní objekt není sám root
-        if start_obj.get("vmdl_type") == "ROOT":
-            root_obj = start_obj
-        else:
-            # Pokud ne, projdeme hierarchii směrem nahoru
-            node = start_obj
-            while node.parent:
-                node = node.parent
-                if node.get("vmdl_type") == "ROOT":
-                    root_obj = node
-                    break
-        
-        # Pokud jsme po prohledání nenašli žádný root, ukončíme to s chybou
-        if not root_obj:
-            self.report({'ERROR'}, "Musíte vybrat objekt z VMDL hierarchie pro export.")
-            return {'CANCELLED'}
-        # --- Konec opravy ---
 
         # --- KROK 1: Sběr všech VMDL metadat ---
         vmdl_extras = {
