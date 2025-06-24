@@ -15,7 +15,8 @@ class VMDL_PT_main_panel(bpy.types.Panel):
         box = layout.box()
         box.label(text="VMDL Workflow", icon='OBJECT_DATA')
         box.operator("vmdl.create_vmdl_object", text="Create VMDL Object", icon='CUBE')
-        if obj and obj.get("vmdl_type") == "ROOT":
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        if obj and obj.vmdl_enum_type == "ROOT":
             box.label(text=f"Aktivní VMDL: {obj.name}", icon='OUTLINER_OB_EMPTY')
         elif not obj:
             box.label(text="Vyberte objekt pro start.", icon='INFO')
@@ -62,7 +63,6 @@ class VMDL_PT_material_panel(bpy.types.Panel):
             main_box = layout.box()
             main_box.label(text=f"Materiál: {mat.name}", icon='NODE_MATERIAL')
             
-            # Validace shaderu
             if shader_props.shader_name not in SHADER_DEFINITIONS:
                 warning_box = main_box.box()
                 warning_box.label(text="Neplatný shader!", icon='ERROR')
@@ -97,12 +97,9 @@ class VMDL_PT_material_panel(bpy.types.Panel):
                         op_view.layer_name = param.name
                     else:
                         row = param_box.row(align=True)
-                        if param.type == "float":
-                            row.prop(param, "float_value", text=param.name)
-                        elif param.type == "vector4":
-                            row.prop(param, "vector_value", text=param.name)
-                        elif param.type == "bool":
-                            row.prop(param, "bool_value", text=param.name)
+                        if param.type == "float": row.prop(param, "float_value", text=param.name)
+                        elif param.type == "vector4": row.prop(param, "vector_value", text=param.name)
+                        elif param.type == "bool": row.prop(param, "bool_value", text=param.name)
 
 class VMDL_PT_collider_panel(bpy.types.Panel):
     bl_label = "Colliders"
@@ -116,7 +113,8 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        return obj and (obj.type == 'MESH' or obj.get("vmdl_type") in ["ROOT", "COLLIDER"])
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        return obj and (obj.type == 'MESH' or obj.vmdl_enum_type in ["ROOT", "COLLIDER"])
 
     def draw(self, context):
         layout = self.layout
@@ -125,7 +123,8 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
         box.label(text="Collider Tools", icon='PHYSICS')
         box.operator("vmdl.generate_collider_mesh", text="Generate Collider", icon='MOD_BUILD')
         
-        if obj and obj.get("vmdl_type") == "COLLIDER":
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        if obj and obj.vmdl_enum_type == "COLLIDER":
             col_props = obj.vmdl_collider
             box.prop(col_props, "collider_type", text="Typ")
             box.operator("vmdl.toggle_collider_shading", text="Toggle Preview Shading", icon='SHADING_RENDERED')
@@ -149,7 +148,8 @@ class VMDL_PT_mountpoint_panel(bpy.types.Panel):
         box.label(text="Mountpoint Tools", icon='EMPTY_ARROWS')
         box.operator("vmdl.create_mountpoint", text="Create from Selection", icon='ADD')
         obj = context.active_object
-        if obj and obj.get("vmdl_type") == "MOUNTPOINT":
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        if obj and obj.vmdl_enum_type == "MOUNTPOINT":
             box.label(text=f"Editing: {obj.name}")
             mount_props = obj.vmdl_mountpoint
             box.prop(mount_props, "forward_vector", text="Forward")
@@ -165,10 +165,9 @@ class VMDL_PT_export_panel(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        # Zobrazit panel, pokud ve scéně existuje jakýkoliv VMDL Root objekt.
-        # Je to uživatelsky přívětivější než vyžadovat konkrétní výběr.
         for obj in context.scene.objects:
-            if obj.get("vmdl_type") == "ROOT":
+            # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+            if obj.vmdl_enum_type == "ROOT":
                 return True
         return False
 
@@ -176,6 +175,4 @@ class VMDL_PT_export_panel(bpy.types.Panel):
         layout = self.layout
         box = layout.box()
         box.label(text="Export VMDL GLB", icon='EXPORT')
-        # Díky upravené `poll` metodě víme, že ve scéně je co exportovat.
-        # Operátor je dostatečně chytrý, aby si našel VMDL root sám.
         box.operator("vmdl.export_glb", text="Export .glb", icon='PACKAGE')

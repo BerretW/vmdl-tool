@@ -16,19 +16,22 @@ class VMDL_OT_generate_collider_mesh(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        return obj and obj.type == 'MESH' and obj.get("vmdl_type") == "MESH"
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        return obj and obj.type == 'MESH' and obj.vmdl_enum_type == "MESH"
 
     def execute(self, context):
         source_obj = context.active_object
         vmdl_root = source_obj.parent
         
-        if not vmdl_root or vmdl_root.get("vmdl_type") != "ROOT":
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        if not vmdl_root or vmdl_root.vmdl_enum_type != "ROOT":
             self.report({'ERROR'}, "Zdrojový mesh musí být součástí VMDL hierarchie.")
             return {'CANCELLED'}
             
         # Smazat starý collider pokud existuje
         for child in vmdl_root.children:
-            if child.get("vmdl_type") == "COLLIDER":
+            # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+            if child.vmdl_enum_type == "COLLIDER":
                 bpy.data.objects.remove(child, do_unlink=True)
 
         bpy.ops.object.select_all(action='DESELECT')
@@ -36,7 +39,8 @@ class VMDL_OT_generate_collider_mesh(bpy.types.Operator):
         bpy.ops.object.duplicate()
         collider_obj = context.active_object
         collider_obj.name = source_obj.name.replace('.model', '.col')
-        collider_obj["vmdl_type"] = "COLLIDER"
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní zápis
+        collider_obj.vmdl_enum_type = "COLLIDER"
         collider_obj.parent = vmdl_root
         
         self.report({'INFO'}, f"Collider {collider_obj.name} vytvořen.")
@@ -49,7 +53,8 @@ class VMDL_OT_toggle_collider_shading(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        return obj and obj.get("vmdl_type") == "COLLIDER"
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        return obj and obj.vmdl_enum_type == "COLLIDER"
 
     def execute(self, context):
         obj = context.active_object

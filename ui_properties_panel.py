@@ -49,8 +49,6 @@ class VMDL_PT_material_properties(bpy.types.Panel):
         shader_props = mat.vmdl_shader
         
         layout.prop(shader_props, "shader_name", text="Shader")
-
-        # Nové tlačítko pro rychlé nastavení
         layout.operator("vmdl.set_default_vertex_colors", text="Nastavit výchozí Vertex Colors", icon='BRUSH_DATA')
         
         if shader_props.textures:
@@ -70,12 +68,9 @@ class VMDL_PT_material_properties(bpy.types.Panel):
                     op.layer_name = param.name
                 else:
                     row = param_box.row(align=True)
-                    if param.type == "float":
-                        row.prop(param, "float_value", text=param.name)
-                    elif param.type == "vector4":
-                        row.prop(param, "vector_value", text=param.name)
-                    elif param.type == "bool":
-                        row.prop(param, "bool_value", text=param.name)
+                    if param.type == "float": row.prop(param, "float_value", text=param.name)
+                    elif param.type == "vector4": row.prop(param, "vector_value", text=param.name)
+                    elif param.type == "bool": row.prop(param, "bool_value", text=param.name)
 
 class VMDL_PT_object_properties(bpy.types.Panel):
     bl_label = "VMDL Nastavení objektu"
@@ -92,7 +87,10 @@ class VMDL_PT_object_properties(bpy.types.Panel):
         layout = self.layout
         obj = context.object
         layout.prop(obj, 'vmdl_enum_type', text="VMDL Typ")
-        vmdl_type = obj.get("vmdl_type")
+        
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        vmdl_type = obj.vmdl_enum_type
+        
         if vmdl_type == "COLLIDER":
             box = layout.box()
             box.label(text="Collider Vlastnosti")

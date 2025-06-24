@@ -1,5 +1,6 @@
 import bpy
 import json
+import os
 from bpy_extras.io_utils import ImportHelper
 
 class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
@@ -14,9 +15,6 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
         objects_before = set(bpy.data.objects)
         
         try:
-            # Nastavíme importér, aby načetl 'extras'
-            # Poznámka: Blenderův importér načítá extras automaticky.
-            # Ukládá je do dočasné datové struktury `bpy.data.gltf_extras`.
             bpy.ops.import_scene.gltf(filepath=self.filepath, loglevel=50)
         except Exception as e:
             self.report({'ERROR'}, f"Import GLB selhal: {e}")
@@ -42,7 +40,8 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
 
             vmdl_type = obj_data.get('vmdl_type')
             if vmdl_type:
-                obj['vmdl_type'] = vmdl_type
+                # OPRAVA: Používáme vmdl_enum_type pro konzistentní zápis
+                obj.vmdl_enum_type = vmdl_type
             
             if vmdl_type == 'COLLIDER':
                 obj.vmdl_collider.collider_type = obj_data.get('collider_type', 'COL_METAL_SOLID')
@@ -57,13 +56,10 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
                 print(f"Varování: Materiál '{mat_name}' z metadat nebyl v GLB nalezen.")
                 continue
             
-            # Nastavení shaderu spustí update, který vyčistí properties
             shader_name = mat_data.get('shader_name')
             if shader_name:
                 mat.vmdl_shader.shader_name = shader_name
             
-            # Použijeme časovač, abychom zajistili, že se properties nastaví
-            # AŽ POTÉ, co je update funkce dokončí.
             bpy.app.timers.register(lambda m=mat, md=mat_data: self.apply_material_properties(m, md))
 
         self.report({'INFO'}, f"VMDL soubor '{os.path.basename(self.filepath)}' úspěšně importován.")
@@ -76,7 +72,6 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
 
         shader_props = mat.vmdl_shader
         
-        # Aplikace parametrů
         for name, value in mat_data.get('parameters', {}).items():
             if name in shader_props.parameters:
                 param = shader_props.parameters[name]
@@ -84,7 +79,6 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
                 elif param.type == 'vector4': param.vector_value = value
                 elif param.type == 'bool': param.bool_value = value
         
-        # Aplikace textur
         for name, image_name in mat_data.get('textures', {}).items():
             if name in shader_props.textures and image_name:
                 image = bpy.data.images.get(image_name)
@@ -93,6 +87,5 @@ class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
                 else:
                     print(f"Varování: Textura '{image_name}' pro materiál '{mat.name}' nenalezena.")
         
-        # Aktualizace náhledu v shader editoru
         from .shader_materials import setup_principled_node_graph
         setup_principled_node_graph(mat)

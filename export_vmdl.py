@@ -17,7 +17,17 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
     filter_glob: bpy.props.StringProperty(default="*.glb", options={'HIDDEN'})
 
     def invoke(self, context, event):
-        if context.scene.name:
+        # Najdeme root, abychom mohli pojmenovat soubor podle něj
+        root_obj = None
+        for obj in context.scene.objects:
+            # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+            if obj.vmdl_enum_type == "ROOT":
+                root_obj = obj
+                break
+        
+        if root_obj:
+             self.filepath = root_obj.name.replace("_VMDL", "") + self.filename_ext
+        elif context.scene.name:
             self.filepath = context.scene.name + self.filename_ext
         else:
             self.filepath = "untitled" + self.filename_ext
@@ -30,21 +40,24 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
 
         # 1. Zkusit aktivní objekt a jeho parenty
         if start_obj:
-            if start_obj.get("vmdl_type") == "ROOT":
+            # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+            if start_obj.vmdl_enum_type == "ROOT":
                 root_obj = start_obj
             else:
                 # Hledání root přes parenty
                 node = start_obj
                 while node.parent:
                     node = node.parent
-                    if node.get("vmdl_type") == "ROOT":
+                    # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+                    if node.vmdl_enum_type == "ROOT":
                         root_obj = node
                         break
 
         # 2. Pokud se nenašel, projít všechny objekty ve scéně a najít první root
         if not root_obj:
             for obj in bpy.context.scene.objects:
-                if obj.get("vmdl_type") == "ROOT":
+                # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+                if obj.vmdl_enum_type == "ROOT":
                     root_obj = obj
                     break
 
@@ -66,7 +79,8 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
                 gather_objects(child)
         gather_objects(root_obj)
         
-        if not any(o.type == 'MESH' and o.get("vmdl_type") == "MESH" for o in all_objs_to_export):
+        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+        if not any(o.type == 'MESH' and o.vmdl_enum_type == "MESH" for o in all_objs_to_export):
             self.report({'ERROR'}, "VMDL Root neobsahuje žádný viditelný MESH objekt.")
             return {'CANCELLED'}
 
@@ -97,8 +111,9 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
 
         # Sběr dat o objektech
         for obj in all_objs_to_export:
-            obj_type = obj.get("vmdl_type")
-            if not obj_type:
+            # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
+            obj_type = obj.vmdl_enum_type
+            if obj_type == 'NONE':
                 continue
             
             obj_data = {'vmdl_type': obj_type}
