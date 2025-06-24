@@ -1,11 +1,11 @@
 bl_info = {
-    "name": "VMDL Tools V2.6",
-    "author": "Navrženo pro Mousiho, implementace a opravy AI",
-    "version": (2, 6, 0),
+    "name": "VMDL Tools V3.0 (GLB)",
+    "author": "Navrženo pro Mousiho, implementace a opravy AI, GLB refaktor",
+    "version": (3, 0, 0),
     "blender": (4, 2, 0),
-    "location": "View3D > Sidebar > VMDL Tools, a File > Import/Export", # ZMĚNA
-    "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl.pkg)",
-    "warning": "Přidána validace shaderů, multi-mesh export a presety materiálů.",
+    "location": "View3D > Sidebar > VMDL, a File > Import/Export",
+    "description": "Kompletní balík pro vytváření a export herních modelů (.glb s VMDL metadaty)",
+    "warning": "Přepracováno na standardní GLB formát s metadaty v 'extras'.",
     "category": "Import-Export",
 }
 
@@ -20,7 +20,7 @@ from . import (
     collider_tools,
     mountpoint_tools,
     export_vmdl,
-    import_vmdl,       # ZMĚNA: Potřebujeme přímý přístup k modulu
+    import_vmdl,
     ui_panel,
     ui_properties_panel,
     vertex_color_utils,
@@ -49,8 +49,8 @@ classes = (
     collider_tools.VMDL_OT_generate_collider_mesh,
     collider_tools.VMDL_OT_toggle_collider_shading,
     mountpoint_tools.VMDL_OT_create_mountpoint,
-    export_vmdl.VMDL_OT_export_package,
-    import_vmdl.VMDL_OT_import_package,
+    export_vmdl.VMDL_OT_export_glb, # ZMĚNA NÁZVU
+    import_vmdl.VMDL_OT_import_glb, # ZMĚNA NÁZVU
 
     # UI Panely
     ui_panel.VMDL_PT_main_panel,
@@ -65,11 +65,11 @@ classes = (
 
 # Funkce, která přidá exportní operátor do menu
 def menu_func_export(self, context):
-    self.layout.operator(export_vmdl.VMDL_OT_export_package.bl_idname, text="VMDL Package (.vmdl.pkg)")
+    self.layout.operator(export_vmdl.VMDL_OT_export_glb.bl_idname, text="VMDL GLB (.glb)")
 
-# NOVÉ: Funkce, která přidá importní operátor do menu
+# Funkce, která přidá importní operátor do menu
 def menu_func_import(self, context):
-    self.layout.operator(import_vmdl.VMDL_OT_import_package.bl_idname, text="VMDL Package (.vmdl.pkg)")
+    self.layout.operator(import_vmdl.VMDL_OT_import_glb.bl_idname, text="VMDL GLB (.glb)")
 
 
 def register():
@@ -88,16 +88,13 @@ def register():
         set=ui_properties_panel.set_vmdl_enum
     )
 
-    # Přidání do menu File > Export
+    # Přidání do menu File > Export/Import
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
-    # NOVÉ: Přidání do menu File > Import
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
 
 def unregister():
-    # Odebrání z menu File > Export
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
-    # NOVÉ: Odebrání z menu File > Import
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
 
     for cls in reversed(classes):

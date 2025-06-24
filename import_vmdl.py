@@ -1,119 +1,98 @@
 import bpy
-import os
 import json
-import zipfile
-import tempfile
-import shutil
 from bpy_extras.io_utils import ImportHelper
-from mathutils import Vector
 
-from .shader_definitions import SHADER_DEFINITIONS
-from .shader_materials import setup_principled_node_graph
-from .vmdl_utils import VMDL_OT_create_vmdl_object
-
-
-class VMDL_OT_import_package(bpy.types.Operator, ImportHelper):
-    bl_idname = "vmdl.import_package"
-    bl_label = "Import VMDL Package"
-    filename_ext = ".vmdl.pkg"
-    filter_glob: bpy.props.StringProperty(default="*.vmdl.pkg", options={'HIDDEN'})
-    auto_parent: bpy.props.BoolProperty(
-        name="Auto Parent",
-        default=True,
-        description="Automaticky nastaví hierarchii VMDL objektů"
-    )
-
-    def invoke(self, context, event):
-        return super().invoke(context, event)
+class VMDL_OT_import_glb(bpy.types.Operator, ImportHelper):
+    bl_idname = "vmdl.import_glb"
+    bl_label = "Import VMDL GLB"
+    filename_ext = ".glb"
+    filter_glob: bpy.props.StringProperty(default="*.glb", options={'HIDDEN'})
 
     def execute(self, context):
-        temp_dir = tempfile.mkdtemp(prefix="vmdl_import_")
+        # --- KROK 1: Standardní import GLB souboru ---
+        # Uložíme si objekty, které existovaly před importem
+        objects_before = set(bpy.data.objects)
+        
         try:
-            with zipfile.ZipFile(self.filepath, 'r') as zf:
-                zf.extractall(temp_dir)
+            # Nastavíme importér, aby načetl 'extras'
+            # Poznámka: Blenderův importér načítá extras automaticky.
+            # Ukládá je do dočasné datové struktury `bpy.data.gltf_extras`.
+            bpy.ops.import_scene.gltf(filepath=self.filepath, loglevel=50)
+        except Exception as e:
+            self.report({'ERROR'}, f"Import GLB selhal: {e}")
+            return {'CANCELLED'}
 
-            base = os.path.splitext(os.path.basename(self.filepath))[0]
-            json_p = os.path.join(temp_dir, f"{base}.vmdl.json")
-            if not os.path.exists(json_p):
-                self.report({'ERROR'}, "Chybí .vmdl.json v balíku.")
-                return {'CANCELLED'}
-
-            with open(json_p) as f:
-                data = json.load(f)
-
-            # --- KROK 1: Import materiálů ---
-            mat_map = {}
-            for mf in data.get('materials', []):
-                mat_path = os.path.join(temp_dir, mf)
-                if not os.path.exists(mat_path):
-                    continue
-                with open(mat_path) as ff:
-                    md = json.load(ff)
-                lookup, mat = self._create_material(md, mf, temp_dir)
-                if mat:
-                    mat_map[lookup] = mat
-
-            # --- KROK 2: Import .glb ---
-            parts = self._import_glb(data.get('model_file'), temp_dir)
-            if not parts:
-                full = os.path.join(temp_dir, data.get('model_file'))
-                if os.path.exists(full):
-                    bpy.ops.import_scene.gltf(filepath=full, loglevel=50)
-                    parts = list(context.selected_objects)
-
-            # Map imported objects by name
-            obj_map = {o.name: o for o in parts}
-
-            # --- KROK 3: Nastavení objektů ---
-            for name, obj in obj_map.items():
-                if obj.type == 'MESH':
-                    obj["vmdl_type"] = "MESH"
-                    for slot in obj.material_slots:
-                        if not slot.material:
-                            continue
-                        orig = slot.material.name
-                        key = orig.split('_')[-1]
-                        if key in mat_map:
-                            old = slot.material
-                            slot.material = mat_map[key]
-                            bpy.data.materials.remove(old)
-
-            # --- KROK 4: Hierarchie ---
-            if self.auto_parent:
-                for link in data.get('hierarchy', []):
-                    child = obj_map.get(link['child'])
-                    parent = obj_map.get(link['parent'])
-                    if child and parent:
-                        child.parent = parent
-
-            # Najděme root
-            root = next((o for o in parts if o.parent is None), None)
-            if root:
-                root.name = data.get('name', '') + '_VMDL'
-                root["vmdl_type"] = "ROOT"
-                context.view_layer.objects.active = root
-
-            self.report({'INFO'}, f"Import dokončen: {data.get('name', '')}")
+        # Získáme nově importované objekty
+        imported_objects = list(set(bpy.data.objects) - objects_before)
+        
+        # --- KROK 2: Zpracování VMDL metadat z 'extras' ---
+        if not hasattr(bpy.data, 'gltf_extras'):
+            self.report({'WARNING'}, "Soubor neobsahuje VMDL metadata ('extras'). Importován jako standardní GLB.")
             return {'FINISHED'}
-        finally:
-            shutil.rmtree(temp_dir)
 
-    def _create_material(self, mat_data, mat_filename, temp_dir):
-        shader = mat_data.get('shader')
-        if shader not in SHADER_DEFINITIONS:
-            self.report({'WARNING'}, f"Shader '{shader}' neexistuje.")
-            return None, None
-        name = os.path.splitext(mat_filename)[0].split('_')[-1]
-        mat = bpy.data.materials.new(name=f"VMDL_{name}")
-        mat.use_nodes = True
-        mat.vmdl_shader.shader_name = shader
+        vmdl_extras = bpy.data.gltf_extras
+        del bpy.data.gltf_extras # Uklidíme po sobě
+
+        # Aplikace VMDL dat na objekty
+        for obj_name, obj_data in vmdl_extras.get('objects', {}).items():
+            obj = bpy.data.objects.get(obj_name)
+            if not obj:
+                print(f"Varování: Objekt '{obj_name}' z metadat nebyl v GLB nalezen.")
+                continue
+
+            vmdl_type = obj_data.get('vmdl_type')
+            if vmdl_type:
+                obj['vmdl_type'] = vmdl_type
+            
+            if vmdl_type == 'COLLIDER':
+                obj.vmdl_collider.collider_type = obj_data.get('collider_type', 'COL_METAL_SOLID')
+            elif vmdl_type == 'MOUNTPOINT':
+                obj.vmdl_mountpoint.forward_vector = obj_data.get('forward_vector', (0,1,0))
+                obj.vmdl_mountpoint.up_vector = obj_data.get('up_vector', (0,0,1))
+        
+        # Aplikace VMDL dat na materiály
+        for mat_name, mat_data in vmdl_extras.get('materials', {}).items():
+            mat = bpy.data.materials.get(mat_name)
+            if not mat:
+                print(f"Varování: Materiál '{mat_name}' z metadat nebyl v GLB nalezen.")
+                continue
+            
+            # Nastavení shaderu spustí update, který vyčistí properties
+            shader_name = mat_data.get('shader_name')
+            if shader_name:
+                mat.vmdl_shader.shader_name = shader_name
+            
+            # Použijeme časovač, abychom zajistili, že se properties nastaví
+            # AŽ POTÉ, co je update funkce dokončí.
+            bpy.app.timers.register(lambda m=mat, md=mat_data: self.apply_material_properties(m, md))
+
+        self.report({'INFO'}, f"VMDL soubor '{os.path.basename(self.filepath)}' úspěšně importován.")
+        return {'FINISHED'}
+
+    def apply_material_properties(self, mat, mat_data):
+        """Aplikuje parametry a textury na materiál."""
+        if not mat or not mat_data:
+            return
+
+        shader_props = mat.vmdl_shader
+        
+        # Aplikace parametrů
+        for name, value in mat_data.get('parameters', {}).items():
+            if name in shader_props.parameters:
+                param = shader_props.parameters[name]
+                if param.type == 'float': param.float_value = value
+                elif param.type == 'vector4': param.vector_value = value
+                elif param.type == 'bool': param.bool_value = value
+        
+        # Aplikace textur
+        for name, image_name in mat_data.get('textures', {}).items():
+            if name in shader_props.textures and image_name:
+                image = bpy.data.images.get(image_name)
+                if image:
+                    shader_props.textures[name].image = image
+                else:
+                    print(f"Varování: Textura '{image_name}' pro materiál '{mat.name}' nenalezena.")
+        
+        # Aktualizace náhledu v shader editoru
+        from .shader_materials import setup_principled_node_graph
         setup_principled_node_graph(mat)
-        return name, mat
-
-    def _import_glb(self, fn, temp_dir):
-        fp = os.path.join(temp_dir, fn)
-        if not os.path.exists(fp):
-            return []
-        before = set(bpy.context.scene.objects)
-        bpy.ops.import_scene.gltf(filepath=fp, loglevel=50)
-        return list(set(bpy.context.scene.objects) - before)

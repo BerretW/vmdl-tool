@@ -1,44 +1,33 @@
-# ================= export_vmdl.py =================
 import bpy
 import json
 import os
-import zipfile
-import shutil
 from bpy_extras.io_utils import ExportHelper
 
-try:
-    from io_scene_gltf2 import export_main
-except ImportError:
-    export_main = None
-
 class VMDLExportProperties(bpy.types.PropertyGroup):
-    export_directory: bpy.props.StringProperty(
-        name="Export Directory",
-        subtype='DIR_PATH',
-        default="//"
-    )
+    # Tato property group zůstává pro případná budoucí nastavení exportu
     version: bpy.props.FloatProperty(
         name="VMDL Version",
-        default=2.6,
-        description="Version number for VMDL JSON"
+        default=3.0,
+        description="Version number for VMDL metadata"
     )
 
-class VMDL_OT_export_package(bpy.types.Operator, ExportHelper):
-    bl_idname = "vmdl.export_package"
-    bl_label = "Export VMDL Package"
-    filename_ext = ".vmdl.pkg"
-    filter_glob: bpy.props.StringProperty(default="*.vmdl.pkg", options={'HIDDEN'})
+class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
+    bl_idname = "vmdl.export_glb"
+    bl_label = "Export VMDL GLB"
+    filename_ext = ".glb"
+    filter_glob: bpy.props.StringProperty(default="*.glb", options={'HIDDEN'})
 
     def invoke(self, context, event):
-        props = context.scene.vmdl_export
-        # default filepath to scene name in chosen directory
-        directory = bpy.path.abspath(props.export_directory)
-        self.filepath = os.path.join(directory, context.scene.name + self.filename_ext)
-        return super().invoke(context, event)
+        # Defaultní název souboru podle názvu scény
+        if context.scene.name:
+            self.filepath = context.scene.name + self.filename_ext
+        else:
+            self.filepath = "untitled" + self.filename_ext
+        return super().invoke(self, context, event)
 
     def execute(self, context):
+        # Najdi VMDL root objekt
         root_obj = context.active_object
-        # auto-find root if selection inside hierarchy
         if not root_obj or root_obj.get("vmdl_type") != "ROOT":
             node = root_obj
             while node and node.parent:
@@ -47,100 +36,96 @@ class VMDL_OT_export_package(bpy.types.Operator, ExportHelper):
                     root_obj = node
                     break
             else:
-                self.report({'ERROR'}, "Musíte vybrat VMDL Root objekt pro export.")
+                self.report({'ERROR'}, "Musíte vybrat objekt z VMDL hierarchie pro export.")
                 return {'CANCELLED'}
 
-        base_name = os.path.splitext(os.path.basename(self.filepath))[0]
-        temp_dir = os.path.join(bpy.app.tempdir, f"vmdl_export_{base_name}")
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        os.makedirs(temp_dir, exist_ok=True)
-
-        vmdl_data = {'name': base_name, 'version': context.scene.vmdl_export.version}
-        mat_files = []
-        texture_files = set()
-
-        all_objs = []
-        def gather(o):
-            all_objs.append(o)
-            for c in o.children:
-                gather(c)
-        gather(root_obj)
-
-        mesh_objs = [o for o in all_objs if o.type=='MESH' and o.get("vmdl_type")=="MESH"]
-        if not mesh_objs:
-            self.report({'ERROR'}, "VMDL Root neobsahuje žádný MESH objekt.")
-            shutil.rmtree(temp_dir)
-            return {'CANCELLED'}
-
-        arm = next((o for o in all_objs if o.type=='ARMATURE'), None)
-        vmdl_hierarchy = []
-        for o in all_objs:
-            if o!=root_obj and o.parent:
-                vmdl_hierarchy.append({'child': o.name, 'parent': o.parent.name})
-
-        vmdl_data['hierarchy'] = vmdl_hierarchy
-        vmdl_data['model_file'] = f"{base_name}.glb"
-
-        # export glb
-        bpy.ops.object.select_all(action='DESELECT')
-        for o in mesh_objs: o.select_set(True)
-        if arm: arm.select_set(True)
-        export_path = os.path.join(temp_dir, vmdl_data['model_file'])
-        export_settings = {
-            'filepath': export_path,
-            'use_selection': True,
-            'export_format': 'GLB',
-            'export_attributes': True,
-            'export_image_format': 'AUTO'
+        # --- KROK 1: Sběr všech VMDL metadat ---
+        vmdl_extras = {
+            'vmdl_version': context.scene.vmdl_export.version,
+            'materials': {},
+            'objects': {}
         }
-        try:
-            if export_main and hasattr(export_main, 'save'):
-                export_main.save(context, export_settings)
-            else:
-                bpy.ops.export_scene.gltf(**export_settings)
-        except Exception as e:
-            self.report({'ERROR'}, f"Export glTF selhal: {e}")
-            shutil.rmtree(temp_dir)
+        
+        all_objs_to_export = []
+        def gather_objects(obj):
+            all_objs_to_export.append(obj)
+            for child in obj.children:
+                gather_objects(child)
+        gather_objects(root_obj)
+        
+        if not any(o.type == 'MESH' and o.get("vmdl_type") == "MESH" for o in all_objs_to_export):
+            self.report({'ERROR'}, "VMDL Root neobsahuje žádný viditelný MESH objekt.")
             return {'CANCELLED'}
 
-        # export materials and textures
-        mats = set(m for o in mesh_objs for m in o.data.materials if m)
-        for i, mat in enumerate(mats):
+        # Sběr dat o materiálech
+        unique_materials = set(
+            mat for o in all_objs_to_export if o.type == 'MESH' for mat in o.data.materials if mat
+        )
+        
+        for mat in unique_materials:
             props = getattr(mat, 'vmdl_shader', None)
-            if not props: continue
-            fname = f"{base_name}_mat_{i}_{mat.name}.mat.json"
-            mat_files.append(fname)
-            data = {'shader': props.shader_name, 'parameters':{}, 'textures':{}}
+            if not props or not props.shader_name:
+                continue
+            
+            mat_data = {'shader_name': props.shader_name, 'parameters': {}, 'textures': {}}
+            
             for p in props.parameters:
-                val = getattr(p, p.type+'_value') if hasattr(p, p.type+'_value') else None
-                data['parameters'][p.name] = list(val) if isinstance(val, (list, tuple)) else val
+                if p.type == 'float': val = p.float_value
+                elif p.type == 'vector4': val = list(p.vector_value)
+                elif p.type == 'bool': val = p.bool_value
+                else: continue
+                mat_data['parameters'][p.name] = val
+
             for t in props.textures:
-                img = getattr(t, 'image', None)
-                if img and img.filepath:
-                    path = bpy.path.abspath(img.filepath)
-                    if os.path.exists(path):
-                        data['textures'][t.name] = os.path.basename(path)
-                        texture_files.add(path)
-            with open(os.path.join(temp_dir, fname), 'w') as f:
-                json.dump(data, f, indent=2)
-        vmdl_data['materials'] = mat_files
+                if t.image:
+                    # GLTF exporter se postará o texturu, my si jen uložíme její název
+                    mat_data['textures'][t.name] = t.image.name
+            
+            vmdl_extras['materials'][mat.name] = mat_data
 
-        # write main JSON
-        with open(os.path.join(temp_dir, f"{base_name}.vmdl.json"), 'w') as f:
-            json.dump(vmdl_data, f, indent=2)
+        # Sběr dat o objektech (typ, collider, mountpoint)
+        for obj in all_objs_to_export:
+            obj_type = obj.get("vmdl_type")
+            if not obj_type:
+                continue
+            
+            obj_data = {'vmdl_type': obj_type}
+            
+            if obj_type == 'COLLIDER':
+                obj_data['collider_type'] = obj.vmdl_collider.collider_type
+            elif obj_type == 'MOUNTPOINT':
+                obj_data['forward_vector'] = list(obj.vmdl_mountpoint.forward_vector)
+                obj_data['up_vector'] = list(obj.vmdl_mountpoint.up_vector)
+            
+            vmdl_extras['objects'][obj.name] = obj_data
 
-        # copy textures
-        for path in texture_files:
-            shutil.copy(path, os.path.join(temp_dir, os.path.basename(path)))
+        # --- KROK 2: Export do GLB s metadaty v 'extras' ---
+        
+        # Výběr všech objektů v hierarchii pro export
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in all_objs_to_export:
+            obj.select_set(True)
+        context.view_layer.objects.active = root_obj
 
-        # package
         try:
-            with zipfile.ZipFile(self.filepath, 'w') as zf:
-                for root, dirs, files in os.walk(temp_dir):
-                    for fn in files:
-                        zf.write(os.path.join(root, fn), arcname=fn)
+            # Uložíme naše data do dočasné scéna property, kterou si glTF exporter přečte
+            bpy.context.scene['gltf_export_extras'] = vmdl_extras
+            
+            bpy.ops.export_scene.gltf(
+                filepath=self.filepath,
+                use_selection=True,
+                export_format='GLB',
+                export_extras=True, # DŮLEŽITÉ: Povolí export 'extras'
+                export_attributes=True, # DŮLEŽITÉ: Exportuje Vertex Colors
+                export_image_format='AUTO' # Necháme Blender, aby se rozhodl
+            )
+        except Exception as e:
+            self.report({'ERROR'}, f"Export GLB selhal: {e}")
+            return {'CANCELLED'}
         finally:
-            shutil.rmtree(temp_dir)
+            # Uklidíme po sobě
+            if 'gltf_export_extras' in bpy.context.scene:
+                del bpy.context.scene['gltf_export_extras']
 
-        self.report({'INFO'}, f"Export úspěšný: {self.filepath}")
+        self.report({'INFO'}, f"Export VMDL do {self.filepath} byl úspěšný.")
         return {'FINISHED'}
