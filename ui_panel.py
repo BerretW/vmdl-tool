@@ -87,12 +87,12 @@ class VMDL_PT_material_panel(bpy.types.Panel):
                         row.prop(param, "vector_value", text=param.name)
                         op_fill = row.operator("vmdl.fill_vertex_color", text="", icon='VPAINT_HLT')
                         op_fill.layer_name = param.name
-                        
-                        is_active_preview = (context.space_data.shading.type == 'SOLID' and 
-                                             context.space_data.shading.color_type == 'VERTEX' and 
-                                             obj.data.vertex_colors.active_render and
-                                             obj.data.vertex_colors.active_render.name == param.name)
-                        
+                        is_active_preview = (
+                            context.space_data.shading.type == 'SOLID' and 
+                            context.space_data.shading.color_type == 'VERTEX' and 
+                            obj.data.vertex_colors.active_render and
+                            obj.data.vertex_colors.active_render.name == param.name
+                        )
                         op_view = row.operator("vmdl.toggle_vertex_color_view", text="", icon='HIDE_ON' if is_active_preview else 'HIDE_OFF')
                         op_view.layer_name = param.name
                     else:
@@ -123,7 +123,7 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
         obj = context.active_object
         box = layout.box()
         box.label(text="Collider Tools", icon='PHYSICS')
-        op = box.operator("vmdl.generate_collider_mesh", text="Generate Collider", icon='MOD_BUILD')
+        box.operator("vmdl.generate_collider_mesh", text="Generate Collider", icon='MOD_BUILD')
         
         if obj and obj.get("vmdl_type") == "COLLIDER":
             col_props = obj.vmdl_collider
@@ -165,12 +165,10 @@ class VMDL_PT_export_panel(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        # Povolit export, pokud je vybrán jakýkoliv objekt z VMDL hierarchie
         obj = context.active_object
         if not obj:
             return False
-        
-        # Projít hierarchii nahoru a najít root
+        # Hledáme root v hierarchii
         if obj.get("vmdl_type") == "ROOT":
             return True
         node = obj
@@ -182,6 +180,10 @@ class VMDL_PT_export_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        obj = context.active_object
         box = layout.box()
         box.label(text="Export VMDL GLB", icon='EXPORT')
-        box.operator("vmdl.export_glb", text="Export .glb", icon='PACKAGE') # ZMĚNA
+        if obj and obj.get("vmdl_type") in ("ROOT", "MESH", "COLLIDER", "MOUNTPOINT"):
+            box.operator("vmdl.export_glb", text="Export .glb", icon='PACKAGE')
+        else:
+            box.label(text="Vyber objekt z VMDL hierarchie", icon='INFO')

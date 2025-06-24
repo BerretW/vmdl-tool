@@ -26,10 +26,30 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
     def execute(self, context):
         # --- OPRAVA: Robustnější způsob nalezení VMDL Root objektu ---
         start_obj = context.active_object
-        
-        if not start_obj:
-            self.report({'ERROR'}, "Není vybrán žádný aktivní objekt pro export.")
+        root_obj = None
+
+        if start_obj and start_obj.get("vmdl_type") == "ROOT":
+            root_obj = start_obj
+        elif start_obj:
+            # Hledání root přes parenty
+            node = start_obj
+            while node.parent:
+                node = node.parent
+                if node.get("vmdl_type") == "ROOT":
+                    root_obj = node
+                    break
+
+        # Fallback: projdi všechny objekty ve scéně a najdi první root
+        if not root_obj:
+            for obj in bpy.context.scene.objects:
+                if obj.get("vmdl_type") == "ROOT":
+                    root_obj = obj
+                    break
+
+        if not root_obj:
+            self.report({'ERROR'}, "Nelze najít žádný VMDL Root objekt pro export.")
             return {'CANCELLED'}
+
 
         root_obj = None
         # Zkontrolujeme, zda aktivní objekt není sám root
