@@ -33,7 +33,8 @@ class VMDL_OT_generate_collider_mesh(bpy.types.Operator):
             # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
             if child.vmdl_enum_type == "COLLIDER":
                 bpy.data.objects.remove(child, do_unlink=True)
-
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.select_all(action='DESELECT')
         source_obj.select_set(True)
         bpy.ops.object.duplicate()

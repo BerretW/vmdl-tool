@@ -44,7 +44,8 @@ class VMDL_OT_create_vmdl_object(bpy.types.Operator):
                 obj.data.vertex_colors.new(name="Color1")
             if 'Color2' not in obj.data.vertex_colors:
                 obj.data.vertex_colors.new(name="Color2")
-
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.select_all(action='DESELECT')
         root.select_set(True)
         context.view_layer.objects.active = root

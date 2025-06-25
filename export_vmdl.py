@@ -88,7 +88,8 @@ class VMDL_OT_export_vmdl(bpy.types.Operator, ExportHelper):
                 obj_data['forward_vector'] = list(obj.vmdl_mountpoint.forward_vector)
                 obj_data['up_vector'] = list(obj.vmdl_mountpoint.up_vector)
             vmdl_metadata['objects'][obj.name] = obj_data
-
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.select_all(action='DESELECT')
         for obj in all_objs_to_export: obj.select_set(True)
         context.view_layer.objects.active = root_obj
