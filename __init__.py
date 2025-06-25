@@ -1,11 +1,11 @@
 bl_info = {
-    "name": "VMDL Tools V3.0 (GLB)",
-    "author": "Navrženo pro Mousiho, implementace a opravy AI, GLB refaktor",
-    "version": (3, 0, 0),
+    "name": "VMDL Tools V3.2 (Texture Archive)",
+    "author": "Navrženo pro Mousiho, implementace a opravy AI, GLB refaktor, ZIP archivátor, Texture Utils",
+    "version": (3, 2, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL, a File > Import/Export",
-    "description": "Kompletní balík pro vytváření a export herních modelů (.glb s VMDL metadaty)",
-    "warning": "Přepracováno na standardní GLB formát s metadaty v 'extras'.",
+    "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl archiv s .glb, metadaty a texturami)",
+    "warning": "Přepracováno na .vmdl archiv s adresářem pro textury. Přidán nástroj na extrakci textur.",
     "category": "Import-Export",
 }
 
@@ -24,6 +24,7 @@ from . import (
     ui_panel,
     ui_properties_panel,
     vertex_color_utils,
+    texture_utils, # Přidán import nového souboru
 )
 
 # Všechny třídy k registraci
@@ -49,8 +50,9 @@ classes = (
     collider_tools.VMDL_OT_generate_collider_mesh,
     collider_tools.VMDL_OT_toggle_collider_shading,
     mountpoint_tools.VMDL_OT_create_mountpoint,
-    export_vmdl.VMDL_OT_export_glb, # ZMĚNA NÁZVU
-    import_vmdl.VMDL_OT_import_glb, # ZMĚNA NÁZVU
+    export_vmdl.VMDL_OT_export_vmdl,
+    import_vmdl.VMDL_OT_import_vmdl,
+    texture_utils.VMDL_OT_extract_textures, # Přidána registrace nového operátoru
 
     # UI Panely
     ui_panel.VMDL_PT_main_panel,
@@ -65,14 +67,17 @@ classes = (
 
 # Funkce, která přidá exportní operátor do menu
 def menu_func_export(self, context):
-    self.layout.operator(export_vmdl.VMDL_OT_export_glb.bl_idname, text="VMDL GLB (.glb)")
+    self.layout.operator(export_vmdl.VMDL_OT_export_vmdl.bl_idname, text="VMDL Archive (.vmdl)")
 
 # Funkce, která přidá importní operátor do menu
 def menu_func_import(self, context):
-    self.layout.operator(import_vmdl.VMDL_OT_import_glb.bl_idname, text="VMDL GLB (.glb)")
+    self.layout.operator(import_vmdl.VMDL_OT_import_vmdl.bl_idname, text="VMDL Archive (.vmdl)")
 
 
 def register():
+    # Importujeme texture_utils zde, abychom se vyhnuli problémům s cyklickými importy při startu
+    from . import texture_utils
+    
     for cls in classes:
         bpy.utils.register_class(cls)
 

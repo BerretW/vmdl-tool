@@ -15,7 +15,6 @@ class VMDL_PT_main_panel(bpy.types.Panel):
         box = layout.box()
         box.label(text="VMDL Workflow", icon='OBJECT_DATA')
         box.operator("vmdl.create_vmdl_object", text="Create VMDL Object", icon='CUBE')
-        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
         if obj and obj.vmdl_enum_type == "ROOT":
             box.label(text=f"Aktivní VMDL: {obj.name}", icon='OUTLINER_OB_EMPTY')
         elif not obj:
@@ -113,7 +112,6 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         obj = context.active_object
-        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
         return obj and (obj.type == 'MESH' or obj.vmdl_enum_type in ["ROOT", "COLLIDER"])
 
     def draw(self, context):
@@ -123,18 +121,10 @@ class VMDL_PT_collider_panel(bpy.types.Panel):
         box.label(text="Collider Tools", icon='PHYSICS')
         box.operator("vmdl.generate_collider_mesh", text="Generate Collider", icon='MOD_BUILD')
         
-        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
         if obj and obj.vmdl_enum_type == "COLLIDER":
             col_props = obj.vmdl_collider
             box.prop(col_props, "collider_type", text="Typ")
             box.operator("vmdl.toggle_collider_shading", text="Toggle Preview Shading", icon='SHADING_RENDERED')
-
-
-# ... (začátek souboru ui_panel.py) ...
-
-
-# ... (zbytek souboru ui_panel.py) ...
-
 
 class VMDL_PT_mountpoint_panel(bpy.types.Panel):
     bl_label = "Mountpoints"
@@ -155,7 +145,6 @@ class VMDL_PT_mountpoint_panel(bpy.types.Panel):
         box.label(text="Mountpoint Tools", icon='EMPTY_ARROWS')
         box.operator("vmdl.create_mountpoint", text="Create from Selection", icon='ADD')
         obj = context.active_object
-        # OPRAVA: Používáme vmdl_enum_type pro konzistentní čtení
         if obj and obj.vmdl_enum_type == "MOUNTPOINT":
             box.label(text=f"Editing: {obj.name}")
             mount_props = obj.vmdl_mountpoint
@@ -163,7 +152,7 @@ class VMDL_PT_mountpoint_panel(bpy.types.Panel):
             box.prop(mount_props, "up_vector", text="Up")
 
 class VMDL_PT_export_panel(bpy.types.Panel):
-    bl_label = "Export"
+    bl_label = "Export & Tools"
     bl_idname = "VMDL_PT_export_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -179,12 +168,15 @@ class VMDL_PT_export_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        export_props = context.scene.vmdl_export # <--- PŘIDÁNO
+        export_props = context.scene.vmdl_export
         
         box = layout.box()
-        box.label(text="Export VMDL GLB", icon='EXPORT')
-        box.operator("vmdl.export_glb", text="Export .glb", icon='PACKAGE')
-        
-        # <--- PŘIDÁNO: Zaškrtávátko pro debug výpis --->
+        box.label(text="Export VMDL Archive", icon='EXPORT')
+        box.operator("vmdl.export_vmdl", text="Export .vmdl", icon='PACKAGE')
         box.prop(export_props, "debug_show_extras")
         
+        tools_box = layout.box()
+        tools_box.label(text="Texture Tools", icon='TEXTURE')
+        
+        # ZDE JE OPRAVA: 'UNPACK' změněno na 'PACKAGE'
+        tools_box.operator("vmdl.extract_textures", text="Extract Textures", icon='PACKAGE')

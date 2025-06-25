@@ -1,46 +1,21 @@
 import bpy
 import json
 import os
-import struct
+import shutil
+import tempfile
+import zipfile
 from bpy_extras.io_utils import ExportHelper
-
-# Inspekční funkce zůstává stejná, je užitečná
-def _inspect_exported_glb(filepath):
-    print("\n================= DEBUG INSPEKCE EXPORTU ==================")
-    try:
-        with open(filepath, 'rb') as f:
-            magic = f.read(4)
-            if magic != b'glTF':
-                print("[INSPEKCE CHYBA] Soubor nemá platný 'glTF' magic number."); return
-            version = struct.unpack('<I', f.read(4))[0]
-            f.read(4)
-            json_chunk_length = struct.unpack('<I', f.read(4))[0]
-            json_chunk_type = f.read(4)
-            if json_chunk_type != b'JSON':
-                print(f"[INSPEKCE CHYBA] První chunk není JSON, ale {json_chunk_type}."); return
-            json_data = f.read(json_chunk_length)
-            gltf_dict = json.loads(json_data.decode('utf-8'))
-            if 'extras' in gltf_dict:
-                print("✅ V souboru byl nalezen klíč 'extras'. Jeho obsah je:")
-                print(json.dumps(gltf_dict['extras'], indent=2, ensure_ascii=False))
-            else:
-                print("❌ V JSON části souboru chybí klíč 'extras'!")
-    except Exception as e:
-        print(f"[INSPEKCE CHYBA] Během čtení souboru došlo k chybě: {e}")
-    finally:
-        print("================ KONEC DEBUG INSPEKCE =================\n")
-
 
 class VMDLExportProperties(bpy.types.PropertyGroup):
     version: bpy.props.FloatProperty(name="VMDL Version", default=3.0, description="Version number for VMDL metadata")
-    debug_show_extras: bpy.props.BoolProperty(name="Debug: Zobrazit Extras", description="Po exportu vypíše obsah 'extras' dat do systémové konzole pro kontrolu", default=False)
+    debug_show_extras: bpy.props.BoolProperty(name="Debug: Zobrazit Metadata", description="Po exportu vypíše obsah 'metadata.json' do systémové konzole pro kontrolu", default=False)
 
 
-class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
-    bl_idname = "vmdl.export_glb"
-    bl_label = "Export VMDL GLB"
-    filename_ext = ".glb"
-    filter_glob: bpy.props.StringProperty(default="*.glb", options={'HIDDEN'})
+class VMDL_OT_export_vmdl(bpy.types.Operator, ExportHelper):
+    bl_idname = "vmdl.export_vmdl"
+    bl_label = "Export VMDL Archive"
+    filename_ext = ".vmdl"
+    filter_glob: bpy.props.StringProperty(default="*.vmdl", options={'HIDDEN'})
 
     def invoke(self, context, event):
         root_obj = None
@@ -54,7 +29,6 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
         return super().invoke(context, event)
 
     def execute(self, context):
-        # Sběr dat (tato část je v pořádku a zůstává stejná)
         start_obj = context.active_object
         root_obj = None
         if start_obj:
@@ -70,19 +44,24 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
         if not root_obj:
             self.report({'ERROR'}, "Nelze najít žádný VMDL Root objekt pro export."); return {'CANCELLED'}
 
-        vmdl_extras = {
+        vmdl_metadata = {
             'vmdl_version': context.scene.vmdl_export.version,
             'materials': {},
             'objects': {}
+            # Odebrána logika s indexy, není potřeba
         }
         all_objs_to_export = []
         def gather_objects(obj):
             all_objs_to_export.append(obj)
             for child in obj.children: gather_objects(child)
         gather_objects(root_obj)
+
         if not any(o.type == 'MESH' and o.vmdl_enum_type == "MESH" for o in all_objs_to_export):
             self.report({'ERROR'}, "VMDL Root neobsahuje žádný viditelný MESH objekt."); return {'CANCELLED'}
+        
         unique_materials = set(mat for o in all_objs_to_export if o.type == 'MESH' for mat in o.data.materials if mat)
+        unique_images = set()
+
         for mat in unique_materials:
             props = getattr(mat, 'vmdl_shader', None)
             if not props or not props.shader_name: continue
@@ -94,8 +73,12 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
                 else: continue
                 mat_data['parameters'][p.name] = val
             for t in props.textures:
-                if t.image: mat_data['textures'][t.name] = t.image.name
-            vmdl_extras['materials'][mat.name] = mat_data
+                if t.image:
+                    mat_data['textures'][t.name] = os.path.basename(t.image.name)
+                    unique_images.add(t.image)
+            # Ukládáme data pod původním jménem materiálu
+            vmdl_metadata['materials'][mat.name] = mat_data
+            
         for obj in all_objs_to_export:
             obj_type = obj.vmdl_enum_type
             if obj_type == 'NONE': continue
@@ -104,39 +87,54 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
             elif obj_type == 'MOUNTPOINT':
                 obj_data['forward_vector'] = list(obj.vmdl_mountpoint.forward_vector)
                 obj_data['up_vector'] = list(obj.vmdl_mountpoint.up_vector)
-            vmdl_extras['objects'][obj.name] = obj_data
+            vmdl_metadata['objects'][obj.name] = obj_data
 
-        # Příprava na export - výběr objektů
         bpy.ops.object.select_all(action='DESELECT')
         for obj in all_objs_to_export: obj.select_set(True)
         context.view_layer.objects.active = root_obj
 
-        # ======================================================================
-        # ZÁSADNÍ ZMĚNA: Použijeme přímý import a volání exportní funkce.
-        # Toto je robustní a spolehlivá metoda.
-        # ======================================================================
         try:
-            # Importujeme funkci přímo z glTF addonu
-            from io_scene_gltf2.io.export_gltf2 import save as gltf2_save
+            with tempfile.TemporaryDirectory() as tempdir:
+                temp_glb_path = os.path.join(tempdir, 'model.glb')
+                temp_json_path = os.path.join(tempdir, 'metadata.json')
+                
+                temp_tex_dir = os.path.join(tempdir, 'tex')
+                os.makedirs(temp_tex_dir)
 
-            # Připravíme slovník s nastavením pro exportní funkci
-            export_settings = {
-                'filepath': self.filepath,
-                'gltf_format': 'GLB',
-                'export_extras': True,
-                'use_selection': True,
-                'export_attributes': True,
-                'export_image_format': 'AUTO',
-                # TOTO JE KLÍČOVÉ: předáváme naše data přímo jako argument
-                'gltf_extras': vmdl_extras
-            }
-            
-            # Zavoláme přímou exportní funkci
-            gltf2_save(context, export_settings)
+                for image in unique_images:
+                    if not image.has_data: continue
+                    dest_filename = os.path.basename(image.name)
+                    dest_filepath = os.path.join(temp_tex_dir, dest_filename)
+                    
+                    if image.packed_file or not os.path.exists(bpy.path.abspath(image.filepath_raw)):
+                        temp_img = image.copy()
+                        temp_img.filepath_raw = dest_filepath
+                        temp_img.file_format = image.file_format or 'PNG'
+                        temp_img.save()
+                        bpy.data.images.remove(temp_img)
+                    else:
+                        shutil.copy(bpy.path.abspath(image.filepath_raw), dest_filepath)
+
+                bpy.ops.export_scene.gltf(
+                    filepath=temp_glb_path,
+                    export_format='GLB',
+                    use_selection=True,
+                    export_attributes=True,
+                    export_image_format='NONE',
+                    export_extras=False
+                )
+
+                with open(temp_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(vmdl_metadata, f, ensure_ascii=False, indent=4)
+                
+                with zipfile.ZipFile(self.filepath, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    zf.write(temp_glb_path, arcname='model.glb')
+                    zf.write(temp_json_path, arcname='metadata.json')
+                    for filename in os.listdir(temp_tex_dir):
+                        zf.write(os.path.join(temp_tex_dir, filename), arcname=f'tex/{filename}')
 
         except Exception as e:
-            self.report({'ERROR'}, f"Export GLB selhal: {e}")
-            # Důležité: při chybě vypíšeme i traceback pro lepší debugování
+            self.report({'ERROR'}, f"Export VMDL archivu selhal: {e}")
             import traceback
             traceback.print_exc()
             return {'CANCELLED'}
@@ -144,6 +142,8 @@ class VMDL_OT_export_glb(bpy.types.Operator, ExportHelper):
         self.report({'INFO'}, f"Export VMDL do {self.filepath} byl úspěšný.")
         
         if context.scene.vmdl_export.debug_show_extras:
-            _inspect_exported_glb(self.filepath)
-            
+            print("\n================= DEBUG VMDL METADATA ==================")
+            print(json.dumps(vmdl_metadata, indent=2, ensure_ascii=False))
+            print("============== KONEC DEBUG VMDL METADATA ===============\n")
+        
         return {'FINISHED'}
