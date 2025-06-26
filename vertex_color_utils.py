@@ -1,3 +1,6 @@
+# ================================================
+# Vložte do souboru: vertex_color_utils.py (OPRAVENÁ VERZE)
+# ================================================
 import bpy
 import bmesh
 
@@ -5,6 +8,7 @@ DEFAULT_COLOR_1 = (0.0, 0.8, 1.0, 1.0)
 DEFAULT_COLOR_2 = (0.0, 0.0, 0.0, 1.0)
 
 class VMDLVertexColorToolsProperties(bpy.types.PropertyGroup):
+    # Nástroje pro malování po výběru
     target_layer: bpy.props.EnumProperty(
         name="Cílová vrstva",
         description="Vyberte, kterou Vertex Color vrstvu chcete modifikovat",
@@ -18,7 +22,61 @@ class VMDLVertexColorToolsProperties(bpy.types.PropertyGroup):
     mask_g: bpy.props.BoolProperty(name="G", default=True, description="Aplikovat zelený kanál")
     mask_b: bpy.props.BoolProperty(name="B", default=True, description="Aplikovat modrý kanál")
     mask_a: bpy.props.BoolProperty(name="A", default=True, description="Aplikovat alfa kanál")
+    
+    # Vlastnosti pro globální nastavení
+    global_roughness: bpy.props.FloatProperty(
+        name="Global Roughness",
+        description="Hodnota, která se zapíše do G kanálu Color1",
+        min=0.0, max=1.0, default=0.8
+    )
+    global_normal_strength: bpy.props.FloatProperty(
+        name="Global Normal Strength",
+        description="Hodnota, která se zapíše do B kanálu Color1",
+        min=0.0, max=1.0, default=1.0
+    )
 
+
+# Operátor pro globální aplikaci
+class VMDL_OT_apply_global_vertex_data(bpy.types.Operator):
+    bl_idname = "vmdl.apply_global_vertex_data"
+    bl_label = "Apply Global Values to Color1"
+    bl_description = "Nastaví hodnoty Roughness (G) a Normal (B) na celém objektu"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        mesh = obj.data
+        tools = context.scene.vmdl_vc_tools
+        
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        
+        if "Color1" not in mesh.vertex_colors:
+            mesh.vertex_colors.new(name="Color1")
+            self.report({'INFO'}, "Vytvořena chybějící vrstva 'Color1'.")
+        
+        color_layer = mesh.vertex_colors["Color1"]
+        
+        new_g = tools.global_roughness
+        new_b = tools.global_normal_strength
+        
+        # Projdeme všechny loopy a upravíme jen G a B kanály
+        for loop_color in color_layer.data:
+            current_color = loop_color.color
+            
+            # === ZDE JE OPRAVA: POUŽÍVÁME INDEXY [0] A [3] MÍSTO .r A .a ===
+            loop_color.color = (current_color[0], new_g, new_b, current_color[3])
+            
+        mesh.update()
+        self.report({'INFO'}, f"Globální hodnoty pro Roughness a Normal aplikovány.")
+        return {'FINISHED'}
+
+
+# --- Zbytek souboru zůstává stejný ---
 class VMDL_OT_set_selection_vertex_color(bpy.types.Operator):
     bl_idname = "vmdl.set_selection_vertex_color"
     bl_label = "Apply to Selection"

@@ -1,5 +1,5 @@
 # ================================================
-# FILE: ui_properties_panel.py
+# FILE: ui_properties_panel.py (Kompletní a opravená verze)
 # ================================================
 import bpy
 from .shader_definitions import SHADER_DEFINITIONS
@@ -44,23 +44,19 @@ class VMDL_PT_material_properties(bpy.types.Panel):
             box.operator("vmdl.fix_invalid_shader", text="Opravit na výchozí"); return
 
         # --- SEKCE PRO TINT PALETU ---
-        tint_tex_prop = shader_props.textures.get("tintpalettetex")
+        # Hledáme texturu "tintpalettetex" ve vlastnostech shaderu
+        tint_tex_prop = next((t for t in shader_props.textures if "tintpalettetex" in t.name), None)
+        
+        # Zobrazíme UI pouze pokud je slot pro paletu definován v shaderu a je v něm načten obrázek
         if tint_tex_prop and tint_tex_prop.image:
             tint_box = layout.box()
             tint_box.label(text="Tint Palette Control", icon='COLOR')
             
-            row = tint_box.row(align=True)
-            row.label(text="Preview:")
+            # Slider pro výběr hodnoty, která se má aplikovat
+            tint_box.prop(shader_props, "tint_preview", slider=True, text="Select Tint")
             
-            # Zobrazí barvu z palety. Bohužel template_color_ramp zde nefunguje s texturou,
-            # takže použijeme jednodušší náhled. V budoucnu by to šlo řešit přes custom widget.
-            # Prozatím je důležitý slider a tlačítko.
-            
-            # Slider pro výběr barvy
-            row.prop(shader_props, "tint_preview", slider=True, text="Select Tint")
-            
-            # Tlačítko pro aplikaci
-            op = tint_box.operator("vmdl.apply_tint_to_object", text="Apply", icon='VPAINT_HLT')
+            # Tlačítko pro aplikaci na R kanál
+            op = tint_box.operator("vmdl.apply_tint_to_object", text="Apply to Object (R channel)", icon='VPAINT_HLT')
             op.tint_value = shader_props.tint_preview
 
         # --- SEZNAM TEXTUR ---

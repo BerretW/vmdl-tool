@@ -1,5 +1,5 @@
 # ================================================
-# FILE: __init__.py
+# FILE: __init__.py (Kompletní a opravená verze)
 # ================================================
 bl_info = {
     "name": "VMDL Tools V3.6 (Advanced Features)",
@@ -47,13 +47,14 @@ classes = (
     shader_materials.VMDL_OT_save_material_preset,
     shader_materials.VMDL_OT_load_material_preset,
     shader_materials.VMDL_OT_fix_invalid_shader,
-    shader_materials.VMDL_OT_apply_tint_to_object, # <-- NOVĚ PŘIDÁNO
+    shader_materials.VMDL_OT_apply_tint_to_object,
     vmdl_utils.VMDL_OT_create_vmdl_object,
     shader_materials.VMDL_OT_create_shader_material,
     vertex_color_utils.VMDL_OT_toggle_vertex_color_view,
     vertex_color_utils.VMDL_OT_set_selection_vertex_color,
     vertex_color_utils.VMDL_OT_fill_vertex_color,
     vertex_color_utils.VMDL_OT_set_default_vertex_colors,
+    vertex_color_utils.VMDL_OT_apply_global_vertex_data, # <-- ZDE JE PŘIDANÝ NOVÝ OPERÁTOR
     collider_tools.VMDL_OT_generate_collider_mesh,
     collider_tools.VMDL_OT_toggle_collider_shading,
     mountpoint_tools.VMDL_OT_create_mountpoint,

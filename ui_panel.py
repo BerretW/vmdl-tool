@@ -82,12 +82,20 @@ class VMDL_PT_vertex_color_panel(bpy.types.Panel):
     @classmethod
     def poll(cls, context):
         return context.active_object and context.active_object.type == 'MESH'
+# ================================================
+# Vložte do souboru: ui_panel.py
+# Nahraďte pouze metodu 'draw' ve třídě VMDL_PT_vertex_color_panel
+# ================================================
+
     def draw(self, context):
         layout = self.layout
         tools = context.scene.vmdl_vc_tools
         obj = context.active_object
-        box = layout.box()
-        row = box.row(align=True)
+
+        # Sekce pro malování na výběr
+        paint_box = layout.box()
+        paint_box.label(text="Paint on Selection", icon='VPAINT_HLT')
+        row = paint_box.row(align=True)
         row.prop(tools, "target_layer", text="")
         op_view = row.operator("vmdl.toggle_vertex_color_view", text="", icon='HIDE_OFF')
         op_view.layer_name = tools.target_layer
@@ -96,21 +104,32 @@ class VMDL_PT_vertex_color_panel(bpy.types.Panel):
             context.space_data.shading.color_type == 'VERTEX' and
             active_vc_layer and active_vc_layer.name == tools.target_layer):
             op_view.icon = 'HIDE_ON'
-        box.prop(tools, "source_color", text="")
-        sub = box.column(align=True)
-        sub.label(text="Aktivní kanály (maska):")
+        
+        paint_box.prop(tools, "source_color", text="")
+        sub = paint_box.column(align=True)
+        sub.label(text="Active Channels (Mask):")
         row = sub.row(align=True)
         row.prop(tools, "mask_r"); row.prop(tools, "mask_g"); row.prop(tools, "mask_b"); row.prop(tools, "mask_a")
-        layout.separator()
-        col = layout.column(align=True)
-        # ZDE JE PROVEDENÁ OPRAVA
+        
+        col = paint_box.column(align=True)
         col.operator("vmdl.set_selection_vertex_color", icon='VPAINT_HLT')
         col.operator("vmdl.fill_vertex_color", text="Fill Entire Layer", icon='FILE_BLANK')
         if context.mode != 'EDIT_MESH':
-            info_box = layout.box()
+            info_box = paint_box.box()
             info_box.alert = True
-            info_box.label(text="Pro aplikaci na výběr přepněte do Edit Módu", icon='INFO')
+            info_box.label(text="For selection, switch to Edit Mode", icon='INFO')
+        
+        layout.separator()
 
+        # === NOVÁ SEKCE PRO GLOBÁLNÍ HODNOTY ===
+        global_box = layout.box()
+        global_box.label(text="Global Applicator (Color1)", icon="SETTINGS")
+        
+        col = global_box.column(align=True)
+        col.prop(tools, "global_roughness")
+        col.prop(tools, "global_normal_strength")
+        
+        global_box.operator("vmdl.apply_global_vertex_data", text="Apply Global Values", icon='CHECKMARK')
 # ... (ostatní panely zůstávají stejné) ...
 class VMDL_PT_collider_panel(bpy.types.Panel):
     bl_label = "Colliders"
