@@ -1,11 +1,14 @@
+# ================================================
+# FILE: __init__.py
+# ================================================
 bl_info = {
-    "name": "VMDL Tools V3.4 (VC Editor)",
-    "author": "Navrženo pro Mousiho, implementace a opravy AI, GLB refaktor, ZIP archivátor, Texture Utils, VC Editor",
-    "version": (3, 4, 0),
+    "name": "VMDL Tools V3.6 (Advanced Features)",
+    "author": "Navrženo pro Mousiho, implementace a opravy AI, GLB refaktor, ZIP archivátor, Texture Utils, VC Editor, UI Refaktor, Advanced Shading",
+    "version": (3, 6, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > VMDL, a File > Import/Export",
     "description": "Kompletní balík pro vytváření a export herních modelů (.vmdl archiv s .glb, metadaty a texturami)",
-    "warning": "Přidán editor Vertex barev s maskováním kanálů pro práci v Edit módu.",
+    "warning": "Přidána podpora pro Dirt Normal Mapy a interaktivní výběr Tint barvy.",
     "category": "Import-Export",
 }
 
@@ -40,9 +43,11 @@ classes = (
 
     # Operátory
     shader_materials.VMDL_OT_load_image,
+    shader_materials.VMDL_OT_clear_texture_slot,
     shader_materials.VMDL_OT_save_material_preset,
     shader_materials.VMDL_OT_load_material_preset,
     shader_materials.VMDL_OT_fix_invalid_shader,
+    shader_materials.VMDL_OT_apply_tint_to_object, # <-- NOVĚ PŘIDÁNO
     vmdl_utils.VMDL_OT_create_vmdl_object,
     shader_materials.VMDL_OT_create_shader_material,
     vertex_color_utils.VMDL_OT_toggle_vertex_color_view,
@@ -76,8 +81,6 @@ def menu_func_import(self, context):
     self.layout.operator(import_vmdl.VMDL_OT_import_vmdl.bl_idname, text="VMDL Archive (.vmdl)")
 
 def register():
-    from . import texture_utils
-    
     for cls in classes:
         bpy.utils.register_class(cls)
 
