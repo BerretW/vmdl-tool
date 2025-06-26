@@ -3,7 +3,6 @@
 # ================================================
 import bpy
 from .shader_definitions import SHADER_DEFINITIONS
-from .shader_materials import get_preview_material
 
 def vmdl_enum_items(self, context):
     return [('NONE', "Žádný", ""), ('ROOT', "Root", ""), ('MESH', "Mesh", ""), ('COLLIDER', "Collider", ""), ('MOUNTPOINT', "Mountpoint", "")]
@@ -51,17 +50,17 @@ class VMDL_PT_material_properties(bpy.types.Panel):
             tint_box.label(text="Tint Palette Control", icon='COLOR')
             
             row = tint_box.row(align=True)
+            row.label(text="Preview:")
             
-            # Zobrazíme barevné políčko s náhledem
-            sub = row.column()
-            sub.label(text="Preview:")
-            sub.prop(shader_props, "tint_color_preview", text="")
-            sub.enabled = False # Jen pro zobrazení, ne pro editaci
-
-            # Sloupec pro slider a tlačítko
-            col = row.column(align=True)
-            col.prop(shader_props, "tint_preview", slider=True, text="Select Tint")
-            op = col.operator("vmdl.apply_tint_to_object", text="Apply This Tint to Object", icon='VPAINT_HLT')
+            # Zobrazí barvu z palety. Bohužel template_color_ramp zde nefunguje s texturou,
+            # takže použijeme jednodušší náhled. V budoucnu by to šlo řešit přes custom widget.
+            # Prozatím je důležitý slider a tlačítko.
+            
+            # Slider pro výběr barvy
+            row.prop(shader_props, "tint_preview", slider=True, text="Select Tint")
+            
+            # Tlačítko pro aplikaci
+            op = tint_box.operator("vmdl.apply_tint_to_object", text="Apply", icon='VPAINT_HLT')
             op.tint_value = shader_props.tint_preview
 
         # --- SEZNAM TEXTUR ---
